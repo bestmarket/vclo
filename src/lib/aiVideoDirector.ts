@@ -792,10 +792,10 @@ export function buildMasterProductionPlan(params: {
   });
 
   const resolvedUseExact = Boolean(
-    (params.referenceConditioning?.useAsExactFrame === true &&
-      params.referenceConditioning?.referenceMode === 'exact_reference_image') ||
-      (params.useAsExactFrame === true &&
-        params.referenceConditioning?.referenceMode === 'exact_reference_image')
+    params.referenceConditioning?.useAsExactFrame ??
+      (params.referenceConditioning?.referenceMode === 'exact_reference_image' ? true : undefined) ??
+      params.useAsExactFrame ??
+      false
   );
 
   const resolvedCustomRefUrl =

@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "Channel Studio",
+  "description": "Clone a channel's style, generate video ideas, and turn them into scripts and videos with a guided AI strategist.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
