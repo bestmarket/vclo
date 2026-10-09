@@ -116,6 +116,8 @@ async function generateSceneImage(prompt: string, providerId?: string, style?: s
         providerId: actualProviderId,
         apiKey: provider.apiKey,
         style,
+        productionPrompt: sceneContext?.productionPrompt || sceneContext?.userVisualPrompt || "",
+        userVisualPrompt: sceneContext?.userVisualPrompt || sceneContext?.productionPrompt || "",
         sceneContext: {
           ...sceneContext,
           exactDirectorPrompt,
