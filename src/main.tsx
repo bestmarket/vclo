@@ -164,31 +164,32 @@ async function generateNarration(text: string, voiceId: string = "edge-aria") {
 // Attach in-memory AI runtime directly to window so dynamic imports never fail over mobile/flaky networks
 if (typeof window !== "undefined") {
   try {
-    // 1. Clear any stuck signed-out flag so the user lands straight into the workspace
+    // 1. Immediately normalize "/" or empty pathname to "/app" so TanStack Router mounts directly to the authenticated workspace
+    if (window.location.pathname === "/" || window.location.pathname === "") {
+      window.history.replaceState(null, "", "/app");
+    }
+
+    // 2. Clear any stuck signed-out flag so the user lands straight into the workspace
     window.localStorage.removeItem("channel_studio_signed_out_v1");
 
-    // 2. Pre-seed default creator session if missing so TanStack Router resolves in 0ms
-    // without stalling on Firebase Auth's 1.2s background initialization
-    const currentSession = window.localStorage.getItem("channel_studio_session_v1");
-    if (!currentSession) {
-      const defaultUser = {
-        id: "creator_google_admin",
-        email: "jwandersonar@gmail.com",
-        displayName: "Channel Creator",
-        photoURL: null,
-        emailVerified: true,
-        providerId: "google",
-        app_metadata: { provider: "google" },
-        user_metadata: { full_name: "Channel Creator" },
-      };
-      window.localStorage.setItem(
-        "channel_studio_session_v1",
-        JSON.stringify({
-          access_token: `instant_tok_${defaultUser.id}`,
-          user: defaultUser,
-        })
-      );
-    }
+    // 3. Pre-seed default creator session so TanStack Router resolves in 0ms synchronously
+    const defaultUser = {
+      id: "creator_google_admin",
+      email: "theinnermirroryt@gmail.com",
+      displayName: "Channel Creator",
+      photoURL: null,
+      emailVerified: true,
+      providerId: "google",
+      app_metadata: { provider: "google" },
+      user_metadata: { full_name: "Channel Creator" },
+    };
+    window.localStorage.setItem(
+      "channel_studio_session_v1",
+      JSON.stringify({
+        access_token: `instant_tok_${defaultUser.id}`,
+        user: defaultUser,
+      })
+    );
   } catch {}
 
   const aiServerModule = {

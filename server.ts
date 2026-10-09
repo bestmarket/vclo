@@ -1,4 +1,67 @@
-var __defProp=Object.defineProperty;var __name=(target,value)=>__defProp(target,"name",{value,configurable:true});var __defProp2=Object.defineProperty;var __name2=__name((target,value)=>__defProp2(target,"name",{value,configurable:true}),"__name");import express from"express";import fs from"fs";import path from"path";import crypto from"crypto";import zlib from"zlib";import{execFile,spawn,spawnSync}from"child_process";import{promisify}from"util";import{fileURLToPath}from"url";import{GoogleGenAI,Modality,Type}from"@google/genai";import{buildMasterProductionPlan,validateTimelineAsset}from"./src/lib/aiVideoDirector";import{enhanceVoiceBufferWithBroadcastDsp,applyCustomVoiceTimbreToSynthesizedWav,synthesizeNoisySeedVoiceSampleWav,VOICE_DSP_PRESETS}from"./src/lib/voiceEnhancementEngine";import{Resvg}from"@resvg/resvg-js";const execFileAsync=promisify(execFile);const __filename=fileURLToPath(import.meta.url);const __dirname=path.dirname(__filename);const UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";const DATA_DIR=path.join(__dirname,".data");const STORE_FILE=path.join(DATA_DIR,"store.json");function loadStore(){try{if(!fs.existsSync(DATA_DIR)){fs.mkdirSync(DATA_DIR,{recursive:true})}if(fs.existsSync(STORE_FILE)){const raw=fs.readFileSync(STORE_FILE,"utf8");const parsed=JSON.parse(raw);return{accounts:parsed.accounts??{},oauthCodes:parsed.oauthCodes??{},tables:parsed.tables??{}}}}catch(err){console.warn("Could not read store.json, starting fresh:",err)}return{accounts:{},oauthCodes:{},tables:{}}}__name(loadStore,"loadStore");__name2(loadStore,"loadStore");const store=loadStore();function saveStore(){try{if(!fs.existsSync(DATA_DIR)){fs.mkdirSync(DATA_DIR,{recursive:true})}const nowMs=Date.now();if(store.oauthCodes&&typeof store.oauthCodes==="object"){for(const[k,v]of Object.entries(store.oauthCodes)){if(!v||nowMs-(v.createdAt||0)>9e5){delete store.oauthCodes[k]}}}const tmpFile=`${STORE_FILE}.tmp.${process.pid}`;fs.writeFileSync(tmpFile,JSON.stringify(store,null,2),"utf8");fs.renameSync(tmpFile,STORE_FILE)}catch(err){console.warn("Could not persist store.json:",err)}}__name(saveStore,"saveStore");__name2(saveStore,"saveStore");function getTable(name){if(!store.tables[name]){store.tables[name]=[]}return store.tables[name]}__name(getTable,"getTable");__name2(getTable,"getTable");function repairProjectIsolationOnStartup(){let dirty=false;const projects=getTable("projects");const sources=getTable("sources");const ideas=getTable("ideas");const scripts=getTable("scripts");const videos=getTable("videos");const primaryAdminProjId="774f9549-270f-4193-903c-9df783ebffca";const secondaryAdminProjId="0c818c42-097f-44bb-a2b2-301af1908047";const stickmanProjId="proj-stickman-paradox";const p1=projects.find(p=>p.id===primaryAdminProjId);const p2=projects.find(p=>p.id===secondaryAdminProjId);if(p1&&p2&&p1.name==="Empire Ledger"&&p2.name==="Empire Ledger"){p1.name="Apex Future Lab";p1.channel_profile={niche:"AI breakthroughs, frontier computing, and hidden technology empires",audience:"Ambitious builders, tech enthusiasts, and curious viewers aged 18\u201345",tone:"Cinematic, investigative, authoritative yet effortlessly clear",hookStyle:"Opens with a counter-intuitive paradox or unseen moment that changed an entire industry",pacing:"Crisp visual transitions every 10\u201315 seconds with escalating narrative stakes",typicalLength:"8\u201312 minutes for longform documentaries; 45\u201360 seconds for vertical Shorts",visualStyle:"Moody 35mm cinematic lighting, glowing data interfaces, and dramatic macro shots"};p1.brainstorm="## Channel DNA\n**Apex Future Lab** decodes frontier technology, AI breakthroughs, and the hidden engineering battles shaping the next decade.";dirty=true}const stickmanSourceIds=new Set(["425ae4b4-51bd-42db-9030-0dd3dbd5c20e","1bc4b97c-49e7-4a4a-81ce-8d19cd6dc5ed"]);const stickmanIdeaIds=new Set(["3732a816-1c9c-4662-a768-23453672d0d9","e8b8a2de-203b-4baf-9545-79d58527dc1d","09dfc2d4-011b-4bfc-8435-8829db66fc28","174075d1-f1e3-461e-9f1a-a191c8781380"]);const hasStickmanItemsInP2=sources.some(s=>stickmanSourceIds.has(String(s.id))&&s.project_id===secondaryAdminProjId)||ideas.some(i=>stickmanIdeaIds.has(String(i.id))&&i.project_id===secondaryAdminProjId);if(hasStickmanItemsInP2){if(!projects.some(p=>p.id===stickmanProjId)){projects.push({id:stickmanProjId,user_id:"creator_google_admin",name:"Stickman Paradox",channel_profile:{niche:"2D animated stickman explainers, absurd what-if physics, and visual thought experiments",audience:"Curious minds, students, and comedy-science fans who love fast visual storytelling",tone:"Witty, deadpan, fast-paced, and effortlessly clear with escalating cartoon chaos",hookStyle:"Poses a deceptively simple or absurd 'What if?' scenario in the first 4 seconds",pacing:"Snappy 2D stick-figure reaction beats every 8\u201312 seconds with clear visual diagrams",typicalLength:"6\u201310 minutes for animated explainers; 45\u201360 seconds for viral stickman Shorts",visualStyle:"Clean 2D hand-drawn stickman animation on crisp dark or blueprint canvas with bold accent colors"},brainstorm:"## Channel DNA: Stickman Paradox\nTurns complex science, game theory, and absurd hypothetical questions into addictive 2D stick-figure stories.",brainstorm_at:"2026-09-27T22:37:44.451Z",created_at:"2026-09-27T22:37:44.000Z",updated_at:"2026-09-27T22:37:44.451Z"})}for(const s of sources){if(stickmanSourceIds.has(String(s.id))){s.project_id=stickmanProjId}}for(const i of ideas){if(stickmanIdeaIds.has(String(i.id))){i.project_id=stickmanProjId}}dirty=true}for(const v of videos){if(v.id==="73a6643c-edb0-48e1-af3c-7c1731253d67"&&p2&&v.project_id!==secondaryAdminProjId){v.project_id=secondaryAdminProjId;dirty=true}}const beforeSourcesLen=sources.length;store.tables["sources"]=sources.filter(s=>{if(s.project_id===primaryAdminProjId&&String(s.label||"").startsWith("Untold Business & Financial Empires")){return false}if(s.project_id===secondaryAdminProjId&&!String(s.label||"").startsWith("Untold Business & Financial Empires")){return false}return true});if(store.tables["sources"].length!==beforeSourcesLen)dirty=true;const p1BusinessIdeaIds=new Set(["05efb642-96de-4cad-a5c7-94aa5b3bccb1","0a161c12-f492-439c-9268-e76975238988","670c3c3e-39ec-418c-bb03-2e35e3891fc1"]);const p2BusinessIdeaIds=new Set(["6e522d3a-ec29-4e1f-a23a-61a1890b08ae","696a3e14-4927-412d-b482-2928318bc0d6","afcb0802-70fb-4635-9309-1f8678b13b4d"]);const beforeIdeasLen=ideas.length;store.tables["ideas"]=ideas.filter(i=>{if(i.project_id===primaryAdminProjId&&p1BusinessIdeaIds.has(String(i.id)))return false;if(i.project_id===secondaryAdminProjId&&!p2BusinessIdeaIds.has(String(i.id)))return false;return true});if(store.tables["ideas"].length!==beforeIdeasLen)dirty=true;const p2BusinessScriptIds=new Set(["a449b86f-69db-41ba-aa32-2bf6fb863068","c3cd1875-99a7-45b3-92eb-d89c3d555ddf"]);const beforeScriptsLen=scripts.length;store.tables["scripts"]=scripts.filter(s=>{if(s.project_id===primaryAdminProjId&&s.id==="db2b4814-86fd-4825-ac28-c0073b3d3627"){return false}if(s.project_id===secondaryAdminProjId&&!p2BusinessScriptIds.has(String(s.id))){return false}return true});if(store.tables["scripts"].length!==beforeScriptsLen)dirty=true;const dupSeededVideoIds=new Set(["video-asml-0c818c42-097","video-neuro-0c818c42-097","video-kurz-0c818c42-097"]);const beforeVideosLen=videos.length;store.tables["videos"]=videos.filter(v=>!dupSeededVideoIds.has(String(v.id)));if(store.tables["videos"].length!==beforeVideosLen)dirty=true;const aiProviders=getTable("ai_providers");const existingGeminiImg=aiProviders.find(p=>p.id==="gemini-image");if(!existingGeminiImg){aiProviders.unshift({id:"gemini-image",category:"image",label:"Google Gemini 2.5 Flash Image (500 Free Images/Day \xB7 Multi-Gemini Pool)",tier:"free",zero_cost:true,requires_key:false,enabled:true,api_key:"builtin",sort_order:1,updated_at:new Date().toISOString()});dirty=true}else if(existingGeminiImg.label!=="Google Gemini 2.5 Flash Image (500 Free Images/Day \xB7 Multi-Gemini Pool)"){existingGeminiImg.label="Google Gemini 2.5 Flash Image (500 Free Images/Day \xB7 Multi-Gemini Pool)";existingGeminiImg.sort_order=1;existingGeminiImg.enabled=true;dirty=true}if(!aiProviders.some(p=>p.id==="pollinations")){aiProviders.push({id:"pollinations",category:"image",label:"Pollinations FLUX 16:9 Scene Engine (Unlimited Free)",tier:"free",zero_cost:true,requires_key:false,enabled:true,api_key:"builtin",sort_order:2,updated_at:new Date().toISOString()});dirty=true}if(!aiProviders.some(p=>p.id==="wikipedia-images")){aiProviders.push({id:"wikipedia-images",category:"image",label:"Wikipedia & Wikimedia Commons Image Database (100M+ Archival & Documentary Photos \xB7 $0 Free)",tier:"free",zero_cost:true,requires_key:false,enabled:true,api_key:"builtin",sort_order:3,updated_at:new Date().toISOString()});dirty=true}if(!aiProviders.some(p=>p.id==="huggingface")){aiProviders.push({id:"huggingface",category:"image",label:"Hugging Face FLUX.1 Schnell (Free Inference)",tier:"free",zero_cost:true,requires_key:false,enabled:true,api_key:"builtin",sort_order:4,updated_at:new Date().toISOString()});dirty=true}const aiSettings=getTable("ai_settings");const defaultsRow=aiSettings.find(s=>s.key==="defaults");if(!defaultsRow){aiSettings.push({id:"defaults",key:"defaults",value:{llm:"gemini-flash",tts:"edge-tts",image:"gemini-image",video:"studio-canvas-engine"},created_at:new Date().toISOString(),updated_at:new Date().toISOString()});dirty=true}else if(!defaultsRow.value?.image||defaultsRow.value?.image==="wikipedia-images"){defaultsRow.value={llm:defaultsRow.value?.llm||"gemini-flash",tts:defaultsRow.value?.tts||"edge-tts",image:"gemini-image",video:defaultsRow.value?.video||"studio-canvas-engine"};dirty=true}if(dirty){saveStore()}}__name(repairProjectIsolationOnStartup,"repairProjectIsolationOnStartup");__name2(repairProjectIsolationOnStartup,"repairProjectIsolationOnStartup");repairProjectIsolationOnStartup();function hashPassword(password,salt){return crypto.scryptSync(password,salt,64).toString("hex")}__name(hashPassword,"hashPassword");__name2(hashPassword,"hashPassword");function deterministicUid(seed){return crypto.createHash("sha256").update(seed.toLowerCase().trim()).digest("hex").slice(0,28)}__name(deterministicUid,"deterministicUid");__name2(deterministicUid,"deterministicUid");let geminiPoolCursor=0;function parseKeyList(raw){if(!raw)return[];return raw.split(/[\s,;]+/).map(k=>k.trim()).filter(k=>k.length>10&&k!=="builtin"&&k!=="MY_GEMINI_API_KEY")}__name(parseKeyList,"parseKeyList");__name2(parseKeyList,"parseKeyList");function getStoredPoolKeys(){const settingsRows=store.tables["ai_settings"]??[];const poolRow=settingsRows.find(r=>r.key==="gemini_key_pool");const rawList=poolRow?.value?.keys??[];const seen=new Set;for(const item of rawList){for(const k of parseKeyList(item)){seen.add(k)}}return[...seen]}__name(getStoredPoolKeys,"getStoredPoolKeys");__name2(getStoredPoolKeys,"getStoredPoolKeys");function saveStoredPoolKeys(keys){const seen=new Set;for(const item of keys){for(const k of parseKeyList(item)){seen.add(k)}}const clean=[...seen];const rows=getTable("ai_settings");const nowIso=new Date().toISOString();const idx=rows.findIndex(r=>r.key==="gemini_key_pool");if(idx>=0){rows[idx]={...rows[idx],key:"gemini_key_pool",value:{keys:clean},updated_at:nowIso}}else{rows.push({id:"gemini_key_pool",key:"gemini_key_pool",value:{keys:clean},created_at:nowIso,updated_at:nowIso})}saveStore();return clean}__name(saveStoredPoolKeys,"saveStoredPoolKeys");__name2(saveStoredPoolKeys,"saveStoredPoolKeys");function maskGeminiKey(key){const trimmed=key.trim();if(trimmed.length<=10)return"\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";return`${trimmed.slice(0,6)}\u2022\u2022\u2022\u2022${trimmed.slice(-4)}`}__name(maskGeminiKey,"maskGeminiKey");__name2(maskGeminiKey,"maskGeminiKey");const invalidGeminiKeys=new Set;const geminiImageZeroQuotaKeys=new Set;let hfSpaceCooldownUntil=0;let pollinationsCooldownUntil=0;function getOrderedGeminiKeys(overrideKey){const envSeen=new Set;const customSeen=new Set;const envRawSet=new Set([...parseKeyList(process.env.GEMINI_API_KEY),...parseKeyList(process.env.GEMINI_API_KEYS),...parseKeyList(process.env.GEMINI_API_KEY_2),...parseKeyList(process.env.GEMINI_API_KEY_3),...parseKeyList(process.env.GEMINI_API_KEY_4),...parseKeyList(process.env.GEMINI_API_KEY_5)]);const addEnv=__name2(list=>{for(const k of list){if(k&&!invalidGeminiKeys.has(k)&&!envSeen.has(k))envSeen.add(k)}},"addEnv");const addCustom=__name2(list=>{for(const k of list){if(k&&!invalidGeminiKeys.has(k)&&!envSeen.has(k)&&!customSeen.has(k))customSeen.add(k)}},"addCustom");if(overrideKey){for(const k of parseKeyList(overrideKey)){if(k&&!invalidGeminiKeys.has(k))envSeen.add(k)}}for(const k of envRawSet){addEnv([k])}addCustom(getStoredPoolKeys());const providerRows=store.tables["ai_providers"]??[];for(const row of providerRows){const rowId=String(row.id||"");const rawKey=String(row.api_key||"");if(rowId.startsWith("gemini-")||rowId==="google-veo-3"||rawKey.includes("AIza")||String(row.label||"").toLowerCase().includes("gemini")){addCustom(parseKeyList(rawKey))}}return[...envSeen,...customSeen]}__name(getOrderedGeminiKeys,"getOrderedGeminiKeys");__name2(getOrderedGeminiKeys,"getOrderedGeminiKeys");function getGeminiKeyPool(overrideKey){const pool=getOrderedGeminiKeys(overrideKey);if(pool.length<=1)return pool;const start=geminiPoolCursor%pool.length;geminiPoolCursor=(geminiPoolCursor+1)%pool.length;return[...pool.slice(start),...pool.slice(0,start)]}__name(getGeminiKeyPool,"getGeminiKeyPool");__name2(getGeminiKeyPool,"getGeminiKeyPool");function createGeminiClientForKey(key){return new GoogleGenAI({apiKey:key,httpOptions:{headers:{"User-Agent":"aistudio-build"}}})}__name(createGeminiClientForKey,"createGeminiClientForKey");__name2(createGeminiClientForKey,"createGeminiClientForKey");function getGeminiClient(overrideKey){const pool=getGeminiKeyPool(overrideKey);const key=pool[0];if(!key){throw new Error("GEMINI_API_KEY is not configured in environment.")}return createGeminiClientForKey(key)}__name(getGeminiClient,"getGeminiClient");__name2(getGeminiClient,"getGeminiClient");function getAppOrigin(req){const envUrl=process.env.APP_URL;if(envUrl&&envUrl!=="MY_APP_URL"&&envUrl.startsWith("http")){return envUrl.replace(/\/$/,"")}const proto=req.headers["x-forwarded-proto"]||req.protocol||"https";const host=req.headers["x-forwarded-host"]||req.headers.host||"localhost:3000";return`${proto}://${host}`}__name(getAppOrigin,"getAppOrigin");__name2(getAppOrigin,"getAppOrigin");async function generateFallbackText(system,prompt){try{const res=await fetch("https://text.pollinations.ai/openai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"openai",messages:[...system?[{role:"system",content:system}]:[],{role:"user",content:prompt}]})});if(res.ok){const data=await res.json();const content=data.choices?.[0]?.message?.content?.trim();if(content)return content}}catch{}const combined=`${system}
+var __defProp=Object.defineProperty;var __name=(target,value)=>__defProp(target,"name",{value,configurable:true});var __defProp2=Object.defineProperty;var __name2=__name((target,value)=>__defProp2(target,"name",{value,configurable:true}),"__name");import express from"express";import fs from"fs";import path from"path";import crypto from"crypto";import zlib from"zlib";import{execFile,spawn,spawnSync}from"child_process";import{promisify}from"util";import{fileURLToPath}from"url";import{GoogleGenAI,Modality,Type}from"@google/genai";import{buildMasterProductionPlan,validateTimelineAsset}from"./src/lib/aiVideoDirector";import{enhanceVoiceBufferWithBroadcastDsp,applyCustomVoiceTimbreToSynthesizedWav,synthesizeNoisySeedVoiceSampleWav,VOICE_DSP_PRESETS}from"./src/lib/voiceEnhancementEngine";import{Resvg}from"@resvg/resvg-js";const execFileAsync=promisify(execFile);const __filename=fileURLToPath(import.meta.url);const __dirname=path.dirname(__filename);const UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";const DATA_DIR=path.join(__dirname,".data");const STORE_FILE=path.join(DATA_DIR,"store.json");function loadStore(){try{if(!fs.existsSync(DATA_DIR)){fs.mkdirSync(DATA_DIR,{recursive:true})}if(fs.existsSync(STORE_FILE)){const raw=fs.readFileSync(STORE_FILE,"utf8");const parsed=JSON.parse(raw);return{accounts:parsed.accounts??{},oauthCodes:parsed.oauthCodes??{},tables:parsed.tables??{}}}}catch(err){console.warn("Could not read store.json, starting fresh:",err)}return{accounts:{},oauthCodes:{},tables:{}}}__name(loadStore,"loadStore");__name2(loadStore,"loadStore");const store=loadStore();function saveStore(){try{if(!fs.existsSync(DATA_DIR)){fs.mkdirSync(DATA_DIR,{recursive:true})}const nowMs=Date.now();if(store.oauthCodes&&typeof store.oauthCodes==="object"){for(const[k,v]of Object.entries(store.oauthCodes)){if(!v||nowMs-(v.createdAt||0)>9e5){delete store.oauthCodes[k]}}}const tmpFile=`${STORE_FILE}.tmp.${process.pid}`;fs.writeFileSync(tmpFile,JSON.stringify(store,null,2),"utf8");fs.renameSync(tmpFile,STORE_FILE)}catch(err){console.warn("Could not persist store.json:",err)}}__name(saveStore,"saveStore");__name2(saveStore,"saveStore");function getTable(name){if(!store.tables[name]){store.tables[name]=[]}return store.tables[name]}__name(getTable,"getTable");__name2(getTable,"getTable");function repairProjectIsolationOnStartup(){let dirty=false;const projects=getTable("projects");const sources=getTable("sources");const ideas=getTable("ideas");const scripts=getTable("scripts");const videos=getTable("videos");const primaryAdminProjId="774f9549-270f-4193-903c-9df783ebffca";const secondaryAdminProjId="0c818c42-097f-44bb-a2b2-301af1908047";const stickmanProjId="proj-stickman-paradox";const p1=projects.find(p=>p.id===primaryAdminProjId);const p2=projects.find(p=>p.id===secondaryAdminProjId);if(p1&&p2&&p1.name==="Empire Ledger"&&p2.name==="Empire Ledger"){p1.name="Apex Future Lab";p1.channel_profile={niche:"AI breakthroughs, frontier computing, and hidden technology empires",audience:"Ambitious builders, tech enthusiasts, and curious viewers aged 18\u201345",tone:"Cinematic, investigative, authoritative yet effortlessly clear",hookStyle:"Opens with a counter-intuitive paradox or unseen moment that changed an entire industry",pacing:"Crisp visual transitions every 10\u201315 seconds with escalating narrative stakes",typicalLength:"8\u201312 minutes for longform documentaries; 45\u201360 seconds for vertical Shorts",visualStyle:"Moody 35mm cinematic lighting, glowing data interfaces, and dramatic macro shots"};p1.brainstorm="## Channel DNA\n**Apex Future Lab** decodes frontier technology, AI breakthroughs, and the hidden engineering battles shaping the next decade.";dirty=true}const stickmanSourceIds=new Set(["425ae4b4-51bd-42db-9030-0dd3dbd5c20e","1bc4b97c-49e7-4a4a-81ce-8d19cd6dc5ed"]);const stickmanIdeaIds=new Set(["3732a816-1c9c-4662-a768-23453672d0d9","e8b8a2de-203b-4baf-9545-79d58527dc1d","09dfc2d4-011b-4bfc-8435-8829db66fc28","174075d1-f1e3-461e-9f1a-a191c8781380"]);const hasStickmanItemsInP2=sources.some(s=>stickmanSourceIds.has(String(s.id))&&s.project_id===secondaryAdminProjId)||ideas.some(i=>stickmanIdeaIds.has(String(i.id))&&i.project_id===secondaryAdminProjId);if(hasStickmanItemsInP2){if(!projects.some(p=>p.id===stickmanProjId)){projects.push({id:stickmanProjId,user_id:"creator_google_admin",name:"Stickman Paradox",channel_profile:{niche:"2D animated stickman explainers, absurd what-if physics, and visual thought experiments",audience:"Curious minds, students, and comedy-science fans who love fast visual storytelling",tone:"Witty, deadpan, fast-paced, and effortlessly clear with escalating cartoon chaos",hookStyle:"Poses a deceptively simple or absurd 'What if?' scenario in the first 4 seconds",pacing:"Snappy 2D stick-figure reaction beats every 8\u201312 seconds with clear visual diagrams",typicalLength:"6\u201310 minutes for animated explainers; 45\u201360 seconds for viral stickman Shorts",visualStyle:"Clean 2D hand-drawn stickman animation on crisp dark or blueprint canvas with bold accent colors"},brainstorm:"## Channel DNA: Stickman Paradox\nTurns complex science, game theory, and absurd hypothetical questions into addictive 2D stick-figure stories.",brainstorm_at:"2026-09-27T22:37:44.451Z",created_at:"2026-09-27T22:37:44.000Z",updated_at:"2026-09-27T22:37:44.451Z"})}for(const s of sources){if(stickmanSourceIds.has(String(s.id))){s.project_id=stickmanProjId}}for(const i of ideas){if(stickmanIdeaIds.has(String(i.id))){i.project_id=stickmanProjId}}dirty=true}for(const v of videos){if(v.id==="73a6643c-edb0-48e1-af3c-7c1731253d67"&&p2&&v.project_id!==secondaryAdminProjId){v.project_id=secondaryAdminProjId;dirty=true}}const beforeSourcesLen=sources.length;store.tables["sources"]=sources.filter(s=>{if(s.project_id===primaryAdminProjId&&String(s.label||"").startsWith("Untold Business & Financial Empires")){return false}if(s.project_id===secondaryAdminProjId&&!String(s.label||"").startsWith("Untold Business & Financial Empires")){return false}return true});if(store.tables["sources"].length!==beforeSourcesLen)dirty=true;const p1BusinessIdeaIds=new Set(["05efb642-96de-4cad-a5c7-94aa5b3bccb1","0a161c12-f492-439c-9268-e76975238988","670c3c3e-39ec-418c-bb03-2e35e3891fc1"]);const p2BusinessIdeaIds=new Set(["6e522d3a-ec29-4e1f-a23a-61a1890b08ae","696a3e14-4927-412d-b482-2928318bc0d6","afcb0802-70fb-4635-9309-1f8678b13b4d"]);const beforeIdeasLen=ideas.length;store.tables["ideas"]=ideas.filter(i=>{if(i.project_id===primaryAdminProjId&&p1BusinessIdeaIds.has(String(i.id)))return false;if(i.project_id===secondaryAdminProjId&&!p2BusinessIdeaIds.has(String(i.id)))return false;return true});if(store.tables["ideas"].length!==beforeIdeasLen)dirty=true;const p2BusinessScriptIds=new Set(["a449b86f-69db-41ba-aa32-2bf6fb863068","c3cd1875-99a7-45b3-92eb-d89c3d555ddf"]);const beforeScriptsLen=scripts.length;store.tables["scripts"]=scripts.filter(s=>{if(s.project_id===primaryAdminProjId&&s.id==="db2b4814-86fd-4825-ac28-c0073b3d3627"){return false}if(s.project_id===secondaryAdminProjId&&!p2BusinessScriptIds.has(String(s.id))){return false}return true});if(store.tables["scripts"].length!==beforeScriptsLen)dirty=true;const dupSeededVideoIds=new Set(["video-asml-0c818c42-097","video-neuro-0c818c42-097","video-kurz-0c818c42-097"]);const beforeVideosLen=videos.length;store.tables["videos"]=videos.filter(v=>!dupSeededVideoIds.has(String(v.id)));if(store.tables["videos"].length!==beforeVideosLen)dirty=true;const aiProviders=getTable("ai_providers");const existingGeminiImg=aiProviders.find(p=>p.id==="gemini-image");if(!existingGeminiImg){aiProviders.unshift({id:"gemini-image",category:"image",label:"Google Gemini 2.5 Flash Image (500 Free Images/Day \xB7 Multi-Gemini Pool)",tier:"free",zero_cost:true,requires_key:false,enabled:true,api_key:"builtin",sort_order:1,updated_at:new Date().toISOString()});dirty=true}else if(existingGeminiImg.label!=="Google Gemini 2.5 Flash Image (500 Free Images/Day \xB7 Multi-Gemini Pool)"){existingGeminiImg.label="Google Gemini 2.5 Flash Image (500 Free Images/Day \xB7 Multi-Gemini Pool)";existingGeminiImg.sort_order=1;existingGeminiImg.enabled=true;dirty=true}if(!aiProviders.some(p=>p.id==="pollinations")){aiProviders.push({id:"pollinations",category:"image",label:"Pollinations FLUX 16:9 Scene Engine (Unlimited Free)",tier:"free",zero_cost:true,requires_key:false,enabled:true,api_key:"builtin",sort_order:2,updated_at:new Date().toISOString()});dirty=true}if(!aiProviders.some(p=>p.id==="wikipedia-images")){aiProviders.push({id:"wikipedia-images",category:"image",label:"Wikipedia & Wikimedia Commons Image Database (100M+ Archival & Documentary Photos \xB7 $0 Free)",tier:"free",zero_cost:true,requires_key:false,enabled:true,api_key:"builtin",sort_order:3,updated_at:new Date().toISOString()});dirty=true}if(!aiProviders.some(p=>p.id==="huggingface")){aiProviders.push({id:"huggingface",category:"image",label:"Hugging Face FLUX.1 Schnell (Free Inference)",tier:"free",zero_cost:true,requires_key:false,enabled:true,api_key:"builtin",sort_order:4,updated_at:new Date().toISOString()});dirty=true}const aiSettings=getTable("ai_settings");const defaultsRow=aiSettings.find(s=>s.key==="defaults");if(!defaultsRow){aiSettings.push({id:"defaults",key:"defaults",value:{llm:"gemini-flash",tts:"edge-tts",image:"gemini-image",video:"studio-canvas-engine"},created_at:new Date().toISOString(),updated_at:new Date().toISOString()});dirty=true}else if(!defaultsRow.value?.image||defaultsRow.value?.image==="wikipedia-images"){defaultsRow.value={llm:defaultsRow.value?.llm||"gemini-flash",tts:defaultsRow.value?.tts||"edge-tts",image:"gemini-image",video:defaultsRow.value?.video||"studio-canvas-engine"};dirty=true}if(dirty){saveStore()}}__name(repairProjectIsolationOnStartup,"repairProjectIsolationOnStartup");__name2(repairProjectIsolationOnStartup,"repairProjectIsolationOnStartup");repairProjectIsolationOnStartup();function hashPassword(password,salt){return crypto.scryptSync(password,salt,64).toString("hex")}__name(hashPassword,"hashPassword");__name2(hashPassword,"hashPassword");function deterministicUid(seed){return crypto.createHash("sha256").update(seed.toLowerCase().trim()).digest("hex").slice(0,28)}__name(deterministicUid,"deterministicUid");__name2(deterministicUid,"deterministicUid");let geminiPoolCursor=0;function parseKeyList(raw){if(!raw)return[];return raw.split(/[\s,;]+/).map(k=>k.trim()).filter(k=>k.length>10&&k!=="builtin"&&k!=="MY_GEMINI_API_KEY")}__name(parseKeyList,"parseKeyList");__name2(parseKeyList,"parseKeyList");function getStoredPoolKeys(){const settingsRows=store.tables["ai_settings"]??[];const poolRow=settingsRows.find(r=>r.key==="gemini_key_pool");const rawList=poolRow?.value?.keys??[];const seen=new Set;for(const item of rawList){for(const k of parseKeyList(item)){seen.add(k)}}return[...seen]}__name(getStoredPoolKeys,"getStoredPoolKeys");__name2(getStoredPoolKeys,"getStoredPoolKeys");function saveStoredPoolKeys(keys){const seen=new Set;for(const item of keys){for(const k of parseKeyList(item)){seen.add(k)}}const clean=[...seen];const rows=getTable("ai_settings");const nowIso=new Date().toISOString();const idx=rows.findIndex(r=>r.key==="gemini_key_pool");if(idx>=0){rows[idx]={...rows[idx],key:"gemini_key_pool",value:{keys:clean},updated_at:nowIso}}else{rows.push({id:"gemini_key_pool",key:"gemini_key_pool",value:{keys:clean},created_at:nowIso,updated_at:nowIso})}saveStore();return clean}__name(saveStoredPoolKeys,"saveStoredPoolKeys");__name2(saveStoredPoolKeys,"saveStoredPoolKeys");function maskGeminiKey(key){const trimmed=key.trim();if(trimmed.length<=10)return"\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";return`${trimmed.slice(0,6)}\u2022\u2022\u2022\u2022${trimmed.slice(-4)}`}__name(maskGeminiKey,"maskGeminiKey");__name2(maskGeminiKey,"maskGeminiKey");const invalidGeminiKeys=new Set;
+function removeInvalidStoredKey(key){
+  if(!key)return;
+  invalidGeminiKeys.add(key);
+  try{
+    const settingsRows=getTable("ai_settings");
+    const poolIdx=settingsRows.findIndex(r=>r.key==="gemini_key_pool");
+    if(poolIdx>=0&&settingsRows[poolIdx]?.value?.keys){
+      settingsRows[poolIdx].value.keys=settingsRows[poolIdx].value.keys.filter(k=>k!==key);
+      settingsRows[poolIdx].updated_at=new Date().toISOString();
+    }
+    const providerRows=getTable("ai_providers");
+    for(const prov of providerRows){
+      if(prov.api_key===key){
+        prov.api_key=process.env.GEMINI_API_KEY||"";
+      }
+    }
+    saveStore();
+  }catch{}
+}
+function repairGeminiPoolOnStartup(){
+  try{
+    const envKey=process.env.GEMINI_API_KEY||"";
+    const settingsRows=getTable("ai_settings");
+    const poolIdx=settingsRows.findIndex(r=>r.key==="gemini_key_pool");
+    if(poolIdx>=0){
+      const rawKeys=settingsRows[poolIdx]?.value?.keys||[];
+      const validKeys=rawKeys.filter(k=>k&&!k.startsWith("AQ.Ab8RN6I")&&!k.startsWith("AQ.Ab8RN6L")&&!invalidGeminiKeys.has(k));
+      if(envKey&&!validKeys.includes(envKey)){
+        validKeys.unshift(envKey);
+      }
+      settingsRows[poolIdx].value={keys:validKeys.length>0?validKeys:(envKey?[envKey]:[])};
+      settingsRows[poolIdx].updated_at=new Date().toISOString();
+    }else if(envKey){
+      settingsRows.push({
+        id:"gemini_key_pool",
+        key:"gemini_key_pool",
+        value:{keys:[envKey]},
+        created_at:new Date().toISOString(),
+        updated_at:new Date().toISOString()
+      });
+    }
+    const providerRows=getTable("ai_providers");
+    for(const prov of providerRows){
+      const id=String(prov.id||"");
+      const rawKey=String(prov.api_key||"");
+      if(id.startsWith("gemini-")||rawKey.startsWith("AQ.Ab8RN6I")||rawKey.startsWith("AQ.Ab8RN6L")){
+        if(envKey){
+          prov.api_key=envKey;
+        }
+      }
+    }
+    saveStore();
+  }catch{}
+}const geminiImageZeroQuotaKeys=new Set;let hfSpaceCooldownUntil=0;let pollinationsCooldownUntil=0;function getOrderedGeminiKeys(overrideKey){const envSeen=new Set;const customSeen=new Set;const envRawSet=new Set([...parseKeyList(process.env.GEMINI_API_KEY),...parseKeyList(process.env.GEMINI_API_KEYS),...parseKeyList(process.env.GEMINI_API_KEY_2),...parseKeyList(process.env.GEMINI_API_KEY_3),...parseKeyList(process.env.GEMINI_API_KEY_4),...parseKeyList(process.env.GEMINI_API_KEY_5)]);const addEnv=__name2(list=>{for(const k of list){if(k&&!invalidGeminiKeys.has(k)&&!envSeen.has(k))envSeen.add(k)}},"addEnv");const addCustom=__name2(list=>{for(const k of list){if(k&&!invalidGeminiKeys.has(k)&&!envSeen.has(k)&&!customSeen.has(k))customSeen.add(k)}},"addCustom");if(overrideKey){for(const k of parseKeyList(overrideKey)){if(k&&!invalidGeminiKeys.has(k))envSeen.add(k)}}for(const k of envRawSet){addEnv([k])}addCustom(getStoredPoolKeys());const providerRows=store.tables["ai_providers"]??[];for(const row of providerRows){const rowId=String(row.id||"");const rawKey=String(row.api_key||"");if(rowId.startsWith("gemini-")||rowId==="google-veo-3"||rawKey.includes("AIza")||String(row.label||"").toLowerCase().includes("gemini")){addCustom(parseKeyList(rawKey))}}return[...envSeen,...customSeen]}__name(getOrderedGeminiKeys,"getOrderedGeminiKeys");__name2(getOrderedGeminiKeys,"getOrderedGeminiKeys");function getGeminiKeyPool(overrideKey){
+  const pool=getOrderedGeminiKeys(overrideKey);
+  if(pool.length<=1)return pool;
+  const envKey=process.env.GEMINI_API_KEY;
+  if(envKey&&pool.includes(envKey)){
+    const withoutEnv=pool.filter(k=>k!==envKey);
+    return[envKey,...withoutEnv];
+  }
+  return pool;
+}__name(getGeminiKeyPool,"getGeminiKeyPool");__name2(getGeminiKeyPool,"getGeminiKeyPool");function createGeminiClientForKey(key){return new GoogleGenAI({apiKey:key,httpOptions:{headers:{"User-Agent":"aistudio-build"}}})}__name(createGeminiClientForKey,"createGeminiClientForKey");__name2(createGeminiClientForKey,"createGeminiClientForKey");function getGeminiClient(overrideKey){const pool=getGeminiKeyPool(overrideKey);const key=pool[0];if(!key){throw new Error("GEMINI_API_KEY is not configured in environment.")}return createGeminiClientForKey(key)}__name(getGeminiClient,"getGeminiClient");__name2(getGeminiClient,"getGeminiClient");function getAppOrigin(req){const envUrl=process.env.APP_URL;if(envUrl&&envUrl!=="MY_APP_URL"&&envUrl.startsWith("http")){return envUrl.replace(/\/$/,"")}const proto=req.headers["x-forwarded-proto"]||req.protocol||"https";const host=req.headers["x-forwarded-host"]||req.headers.host||"localhost:3000";return`${proto}://${host}`}__name(getAppOrigin,"getAppOrigin");__name2(getAppOrigin,"getAppOrigin");async function generateFallbackText(system,prompt){try{const res=await fetch("https://text.pollinations.ai/openai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"openai",messages:[...system?[{role:"system",content:system}]:[],{role:"user",content:prompt}]})});if(res.ok){const data=await res.json();const content=data.choices?.[0]?.message?.content?.trim();if(content)return content}}catch{}const combined=`${system}
 ${prompt}`;if(prompt.includes("Reply with: routing works")){return"Routing works \u2014 AI engine is active and ready."}if(combined.includes("hookStyle")&&combined.includes("visualStyle")&&combined.includes("typicalLength")){return JSON.stringify({name:"Creator Studio Channel",niche:"High-retention digital storytelling, technology & modern culture",audience:"Curious viewers who enjoy fast-paced, insight-driven explainers",tone:"Sharp, conversational, authoritative yet accessible",hookStyle:"Bold contrarian statement or surprising visual question in the first 5 seconds",pacing:"Crisp pattern interrupts every 15-20 seconds with escalating narrative stakes",typicalLength:"8 to 12 minutes (or 60-second high-impact vertical cuts)",visualStyle:"High-contrast cinematic framing with clean motion callouts"})}if(combined.includes('"hook"')&&combined.includes('"angle"')&&combined.includes("Return a JSON array")){return JSON.stringify([{title:"The Hidden System Quietly Reshaping Everything You Use",hook:"You interact with this invisible rulebook 50 times a day\u2014and almost nobody knows who wrote it.",angle:"Reveals the counter-intuitive mechanics behind everyday technology with a clear 3-act payoff."},{title:"Why Everyone Got This Viral Trend Completely Backwards",hook:"Everything you've been told about why this works is the exact opposite of what the data shows.",angle:"Uses a myth-busting open loop that keeps retention high until the final reveal."},{title:"I Tested the 1% Formula for 30 Days \u2014 Here's What Actually Happened",hook:"On day four I almost quit, until one tiny adjustment changed the entire outcome.",angle:"First-person experiment format with measurable milestones and actionable takeaways."},{title:"How a Simple 10-Minute Habit Beat a Million-Dollar Strategy",hook:"The most expensive solution failed in a week, while a free notebook method won.",angle:"David-vs-Goliath contrast that viewers immediately want to try themselves."}])}if(combined.includes("VIRAL_SCRIPT_UPGRADE_REQUEST")){const titleMatch=combined.match(/Current Script Title:\s*(.+)/);const rawTitle=titleMatch?.[1]?.trim()||"The Counter-Intuitive Blueprint";const upgradedTitle=/[?!—:]/.test(rawTitle)?rawTitle:`${rawTitle} \u2014 Why Everyone Got It Backwards`;return JSON.stringify({title:upgradedTitle,description:"Upgraded with AI Virality Intelligence and cloned channel retention loops for maximum CTR and watch time.",tags:["viral","documentary","storytelling","breakthrough","explained","strategy","deepdive","trends"],overallScore:96,channelCloneScore:95,aiIntelligenceScore:97,channelMatchSummary:"Locked to the cloned channel's exact contrarian hook cadence, 12-second pattern interrupts, and visual contrast.",aiVerdictSummary:"AI Virality Intelligence: Unskippable 5-second curiosity hook, mid-script open loops, and high-retention payoff."})}if(combined.includes('"scenes"')&&combined.includes('"narration"')&&combined.includes('"visual"')){if(combined.includes('"scripts"')){return JSON.stringify({scripts:[{title:"The Counter-Intuitive Blueprint",description:"A high-retention breakdown of the hidden mechanics behind breakout channels.",tags:["strategy","storytelling","creators","growth","youtube"],scenes:[{narration:"Most people assume success comes from louder hooks, but the real secret happens in the first ten seconds of quiet tension.",visual:"Close-up of a glowing timeline monitor in a dark studio, cinematic rim lighting, shallow depth of field"},{narration:"When you open with a question the viewer can't immediately answer, their brain locks in until the loop closes.",visual:"Dramatic wide shot of a luminous blueprint unfolding in mid-air, moody cyan and amber lighting"},{narration:"By the midpoint, every scene raises the stakes with a concrete example instead of abstract theory.",visual:"High-contrast split screen showing two contrasting paths converging on a bright horizon, 35mm film look"},{narration:"Try this structure on your very next upload and watch how much longer viewers stay through the finale.",visual:"Warm sunlit workspace with a notebook and camera lens catching golden hour light, crisp focus"}]}]})}return JSON.stringify({title:"The Counter-Intuitive Blueprint",description:"A high-retention breakdown of the hidden mechanics behind breakout channels.",tags:["strategy","storytelling","creators","growth","youtube","retention"],scenes:[{narration:"Most people assume success comes from louder hooks, but the real secret happens in the first ten seconds of quiet tension.",visual:"Close-up of a glowing timeline monitor in a dark studio, cinematic rim lighting, shallow depth of field"},{narration:"When you open with a question the viewer can't immediately answer, their brain locks in until the loop closes.",visual:"Dramatic wide shot of a luminous blueprint unfolding in mid-air, moody cyan and amber lighting"},{narration:"By the midpoint, every scene raises the stakes with a concrete example instead of abstract theory.",visual:"High-contrast split screen showing two contrasting paths converging on a bright horizon, 35mm film look"},{narration:"Try this structure on your very next upload and watch how much longer viewers stay through the finale.",visual:"Warm sunlit workspace with a notebook and camera lens catching golden hour light, crisp focus"}]})}if(combined.includes("summary")&&combined.includes("hook")&&combined.includes("structure")&&(combined.includes("whatWorks")||combined.includes("replicateNext"))){return JSON.stringify({summary:"Fast-paced explainer that hooks the viewer with a surprising paradox and resolves it through three concrete examples. Keeps visual momentum high with pattern interrupts every 25 seconds.",hook:"Opens with a direct contradiction of common wisdom in the first 6 seconds.",structure:["Contrarian Hook & Open Loop","The Hidden Mechanism Explained","Real-World Case Study Breakdown","Counter-Intuitive Payoff & Takeaway"],topics:["storytelling","audience retention","strategy","digital culture"],tone:"Conversational, analytical, and confident",pacing:"Brisk cadence with short punchy sentences",callToAction:"Try this framework on your next upload and compare the retention curve.",whatWorks:"Builds an immediate curiosity gap and rewards viewer attention at every act break."})}if(combined.includes("sceneEdits")&&combined.includes("Current production settings")){return JSON.stringify({settings:{},sceneEdits:[],summary:"Applied your production adjustments to the video."})}return`### Channel Strategy & Next Steps
 
 Based on your channel workspace, here is a focused action plan:
@@ -1116,13 +1179,184 @@ Check strictly for:
 1. Garbled/gibberish AI text or watermarks baked into the artwork (small clean technical numbers are OK, gibberish words are a failure).
 2. Severe anatomical distortion or broken geometry.
 3. Alignment with the style "${params.styleId}" and subject "${params.topicKeyword}".
-Return JSON with passed (true if score >= 70), score (0-100), verdict (concise 6-10 word studio QA stamp), issues (array of any flaws found), and correctiveDirective (how to fix the prompt if failed).`}],config:{responseMimeType:"application/json",responseSchema:qaSchema}}),new Promise((_,rej)=>setTimeout(()=>rej(new Error("Vision QA timeout")),7500))]);const parsed=JSON.parse(String(resp?.text||"").trim());if(parsed&&typeof parsed.score==="number"){return{passed:Boolean(parsed.passed&&parsed.score>=70),score:Math.round(Math.max(0,Math.min(100,Number(parsed.score)))),verdict:String(parsed.verdict||"Gemini Vision QA Verified").slice(0,90),issues:Array.isArray(parsed.issues)?parsed.issues.map(String):[],correctiveDirective:String(parsed.correctiveDirective||""),autoHealed:false}}}catch(err){const msg=(err as Error)?.message||String(err);if(msg.includes("401")||msg.includes("UNAUTHENTICATED")||msg.includes("ACCESS_TOKEN_TYPE_UNSUPPORTED")){invalidGeminiKeys.add(key);keyFailedAuth=true;break;}}}if(keyFailedAuth)continue;}}return{passed:true,score:95,verdict:"Broadcast QA Verified \xB7 Style & Framing Locked",issues:[],correctiveDirective:"",autoHealed:false}}__name(inspectSceneFrameWithGeminiVision,"inspectSceneFrameWithGeminiVision");__name2(inspectSceneFrameWithGeminiVision,"inspectSceneFrameWithGeminiVision");app.post("/api/ai/image",async(req,res)=>{const{prompt,providerId,apiKey,style,topicKeyword,sceneContext}=req.body??{};if(!prompt){return res.status(400).json({error:"Missing image prompt"})}const generated=await serverGenerateSceneImage(prompt,providerId,apiKey,style,topicKeyword,void 0,sceneContext);try{const usedProv=providerId||(String(generated.source||"").toLowerCase().includes("gemini")?"gemini-image":String(generated.source||"").toLowerCase().includes("wiki")?"wikipedia-images":"pollinations");getTable("usage_events").push({id:`evt_img_api_${Date.now()}`,user_id:"creator_google_admin",category:"image",provider:usedProv,units:1,cost_usd:0,success:true,created_at:new Date().toISOString()});saveStore()}catch{}return res.json({base64:generated.base64,mimeType:generated.mimeType,source:generated.source})});app.get("/api/ai/pool-status",(_req,res)=>{const storedKeys=getStoredPoolKeys();const storedSet=new Set(storedKeys);const pool=getOrderedGeminiKeys();const keyCount=Math.max(1,pool.length);const slots=pool.map((k,idx)=>({index:idx+1,masked:maskGeminiKey(k),source:storedSet.has(k)?"pool":"env"}));return res.json({activeKeys:keyCount,customPoolCount:storedKeys.length,dailyFreeImagesPerKey:500,totalDailyFreeImages:keyCount*500,rpmPerKey:10,totalRpm:keyCount*10,nigeriaSupported:true,rotationMode:"round-robin + automatic 429 failover",slots})});app.post("/api/ai/pool-keys",(req,res)=>{try{const{action="add",rawKeys="",removeIndex}=req.body;const current=getStoredPoolKeys();let updated=current;if(action==="clear"){updated=saveStoredPoolKeys([])}else if(action==="remove"&&typeof removeIndex==="number"){const pool2=getOrderedGeminiKeys();const targetKey=pool2[removeIndex];updated=saveStoredPoolKeys(current.filter(k=>k!==targetKey))}else if(action==="set"){updated=saveStoredPoolKeys(parseKeyList(rawKeys))}else{updated=saveStoredPoolKeys([...current,...parseKeyList(rawKeys)])}const pool=getOrderedGeminiKeys();const keyCount=Math.max(1,pool.length);const storedSet=new Set(updated);return res.json({ok:true,activeKeys:keyCount,customPoolCount:updated.length,totalDailyFreeImages:keyCount*500,totalRpm:keyCount*10,slots:pool.map((k,idx)=>({index:idx+1,masked:maskGeminiKey(k),source:storedSet.has(k)?"pool":"env"}))})}catch(err){return res.status(400).json({error:err instanceof Error?err.message:"Could not update Gemini pool"})}});async function serverGenerateNarration(params){const cleanText=(params.text||"").trim();const spec=resolveServerVoice(params.voiceId||params.voiceName);if(spec.isCustomVoice&&spec.customVoiceRecord){const cv=spec.customVoiceRecord;if(params.previewMode==="raw"&&cv.rawPath){const rawStored=loadMediaFromDisk(cv.rawPath);if(rawStored?.bytes){return{base64:rawStored.bytes.toString("base64"),mimeType:"audio/wav",bytes:rawStored.bytes,voiceId:spec.id,gatewayVoice:spec.gatewayVoice,gender:spec.gender,engine:"custom-dsp-voice",model:"raw-user-recording"}}}if((params.previewMode==="enhanced"||cleanText==="Voice check. Your narration engine is working.")&&cv.enhancedPath){const enhStored=loadMediaFromDisk(cv.enhancedPath);if(enhStored?.bytes){return{base64:enhStored.bytes.toString("base64"),mimeType:"audio/wav",bytes:enhStored.bytes,voiceId:spec.id,gatewayVoice:spec.gatewayVoice,gender:spec.gender,engine:"custom-dsp-voice",model:"broadcast-dsp-master"}}}}const maybeApplyCustomCloneDsp=rawBytes=>{if(!spec.isCustomVoice||!spec.customVoiceRecord)return rawBytes;try{return applyCustomVoiceTimbreToSynthesizedWav(rawBytes,spec.customVoiceRecord,path.join(MEDIA_DIR,"tmp_voice"))}catch{return rawBytes}};const resolvedGatewayVoice=spec.gatewayVoice;const resolvedDirection=params.direction||spec.direction;const resolvedGender=params.gender||spec.gender;const resolvedElevenId=params.elevenId||spec.elevenId;const cacheKey=`${spec.id}:${resolvedGatewayVoice}:${cleanText}`;const cached=ttsAudioCache.get(cacheKey);if(cached){return{base64:cached.base64,mimeType:cached.mimeType,bytes:Buffer.from(cached.base64,"base64"),voiceId:spec.id,gatewayVoice:resolvedGatewayVoice,gender:resolvedGender,engine:spec.engine,model:cached.model}}const customKey=params.apiKey&&params.apiKey.trim()&&params.apiKey.trim()!=="builtin"?params.apiKey.trim():null;if(params.providerId==="elevenlabs"&&customKey){try{const r=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${resolvedElevenId}?output_format=pcm_24000`,{method:"POST",headers:{"xi-api-key":customKey,"Content-Type":"application/json"},body:JSON.stringify({text:cleanText,model_id:"eleven_multilingual_v2"})});if(r.ok){const pcmBytes=new Uint8Array(await r.arrayBuffer());const wavBuffer=maybeApplyCustomCloneDsp(pcm16ToWav(pcmBytes,24e3));const b64=wavBuffer.toString("base64");ttsAudioCache.set(cacheKey,{base64:b64,mimeType:"audio/wav",model:"elevenlabs"});return{base64:b64,mimeType:"audio/wav",bytes:wavBuffer,voiceId:spec.id,gatewayVoice:resolvedGatewayVoice,gender:resolvedGender,engine:spec.isCustomVoice?"custom-dsp-voice":"elevenlabs"}}}catch{}}const keyPool=getGeminiKeyPool(customKey);const startModelIdx=ttsModelCursor%ttsModelOrder.length;ttsModelCursor=(ttsModelCursor+1)%ttsModelOrder.length;const modelsToTry=[...ttsModelOrder.slice(startModelIdx),...ttsModelOrder.slice(0,startModelIdx)];for(const key of keyPool){for(const modelName of modelsToTry){try{const ai=createGeminiClientForKey(key);const isGemini38=modelName.startsWith("gemini-3.8");const contents=isGemini38?[{role:"user",parts:[{text:cleanText,speechMetadata:{style:resolvedDirection}}]}]:[{parts:[{text:`Say in a ${resolvedDirection} tone: ${cleanText}`}]}];const response=await ai.models.generateContent({model:modelName,contents,config:{responseModalities:[Modality.AUDIO],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:resolvedGatewayVoice}}}}});const base64Audio=response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;if(base64Audio){const rawBytes=Buffer.from(base64Audio,"base64");const isAlreadyWav=rawBytes.length>12&&rawBytes.subarray(0,4).toString("ascii")==="RIFF"&&rawBytes.subarray(8,12).toString("ascii")==="WAVE";const wavBuffer=maybeApplyCustomCloneDsp(isAlreadyWav?rawBytes:pcm16ToWav(new Uint8Array(rawBytes),24e3));const b64=wavBuffer.toString("base64");ttsAudioCache.set(cacheKey,{base64:b64,mimeType:"audio/wav",model:modelName});return{base64:b64,mimeType:"audio/wav",bytes:wavBuffer,voiceId:spec.id,gatewayVoice:resolvedGatewayVoice,gender:resolvedGender,engine:spec.engine,model:modelName}}}catch{}}}const neuralAudio=await tryNeuralFallbackTts(cleanText,spec.neuralFallbackVoice);if(neuralAudio){const rawNeuralBytes=Buffer.from(neuralAudio.base64,"base64");const clonedBytes=spec.isCustomVoice?maybeApplyCustomCloneDsp(rawNeuralBytes):rawNeuralBytes;const outMime=spec.isCustomVoice?"audio/wav":neuralAudio.mimeType;const outB64=clonedBytes.toString("base64");ttsAudioCache.set(cacheKey,{base64:outB64,mimeType:outMime,model:`neural-${spec.engine}-${resolvedGender}`});return{base64:outB64,mimeType:outMime,bytes:clonedBytes,voiceId:spec.id,gatewayVoice:resolvedGatewayVoice,gender:resolvedGender,engine:spec.engine,model:`neural-${spec.engine}-${resolvedGender}`}}const fallbackWav=maybeApplyCustomCloneDsp(generateFallbackSpeechWav(cleanText,resolvedGender));return{base64:fallbackWav.toString("base64"),mimeType:"audio/wav",bytes:fallbackWav,voiceId:spec.id,gatewayVoice:resolvedGatewayVoice,gender:resolvedGender,engine:spec.engine}}__name(serverGenerateNarration,"serverGenerateNarration");__name2(serverGenerateNarration,"serverGenerateNarration");app.post("/api/ai/tts",async(req,res)=>{try{const body=req.body;const cleanText=(body.text||"").trim();if(!cleanText){return res.status(400).json({error:"Missing narration text"})}const result=await serverGenerateNarration({...body,text:cleanText});return res.json({base64:result.base64,mimeType:result.mimeType,voiceId:result.voiceId,gatewayVoice:result.gatewayVoice,gender:result.gender,engine:result.engine,model:result.model})}catch(err){const message=err instanceof Error?err.message:"Voice synthesis failed";return res.status(500).json({error:message})}});app.post("/api/media/upload",(req,res)=>{try{const{path:filePath,dataUrl}=req.body;if(!filePath||!dataUrl)return res.status(400).json({error:"Missing path or dataUrl"});const match=dataUrl.match(/^data:([^;]+);base64,(.+)$/);if(match){const mimeType=match[1];const bytes=Buffer.from(match[2],"base64");saveMediaToDisk(filePath,mimeType,bytes)}return res.json({ok:true})}catch{return res.status(500).json({error:"Upload failed"})}});function serveStudioMediaFile(rawFilePath, req, res) {
-  const filePath = String(rawFilePath || "").replace(/^\/+/, "").replace(/^media\/+/, "");
-  const candidates = [
-    filePath,
-    filePath.replace(/scene_(\d+)/g, "scene-$1"),
-    filePath.replace(/scene-(\d+)/g, "scene_$1"),
-  ];
+Return JSON with passed (true if score >= 70), score (0-100), verdict (concise 6-10 word studio QA stamp), issues (array of any flaws found), and correctiveDirective (how to fix the prompt if failed).`}],config:{responseMimeType:"application/json",responseSchema:qaSchema}}),new Promise((_,rej)=>setTimeout(()=>rej(new Error("Vision QA timeout")),7500))]);const parsed=JSON.parse(String(resp?.text||"").trim());if(parsed&&typeof parsed.score==="number"){return{passed:Boolean(parsed.passed&&parsed.score>=70),score:Math.round(Math.max(0,Math.min(100,Number(parsed.score)))),verdict:String(parsed.verdict||"Gemini Vision QA Verified").slice(0,90),issues:Array.isArray(parsed.issues)?parsed.issues.map(String):[],correctiveDirective:String(parsed.correctiveDirective||""),autoHealed:false}}}catch(err){const msg=(err as Error)?.message||String(err);if(msg.includes("401")||msg.includes("UNAUTHENTICATED")||msg.includes("ACCESS_TOKEN_TYPE_UNSUPPORTED")){invalidGeminiKeys.add(key);keyFailedAuth=true;break;}}}if(keyFailedAuth)continue;}}return{passed:true,score:95,verdict:"Broadcast QA Verified \xB7 Style & Framing Locked",issues:[],correctiveDirective:"",autoHealed:false}}__name(inspectSceneFrameWithGeminiVision,"inspectSceneFrameWithGeminiVision");__name2(inspectSceneFrameWithGeminiVision,"inspectSceneFrameWithGeminiVision");app.post("/api/ai/image",async(req,res)=>{const{prompt,providerId,apiKey,style,topicKeyword,sceneContext}=req.body??{};if(!prompt){return res.status(400).json({error:"Missing image prompt"})}const generated=await serverGenerateSceneImage(prompt,providerId,apiKey,style,topicKeyword,void 0,sceneContext);try{const usedProv=providerId||(String(generated.source||"").toLowerCase().includes("gemini")?"gemini-image":String(generated.source||"").toLowerCase().includes("wiki")?"wikipedia-images":"pollinations");getTable("usage_events").push({id:`evt_img_api_${Date.now()}`,user_id:"creator_google_admin",category:"image",provider:usedProv,units:1,cost_usd:0,success:true,created_at:new Date().toISOString()});saveStore()}catch{}return res.json({base64:generated.base64,mimeType:generated.mimeType,source:generated.source})});app.get("/api/ai/pool-status",(_req,res)=>{const storedKeys=getStoredPoolKeys();const storedSet=new Set(storedKeys);const pool=getOrderedGeminiKeys();const keyCount=Math.max(1,pool.length);const slots=pool.map((k,idx)=>({index:idx+1,masked:maskGeminiKey(k),source:storedSet.has(k)?"pool":"env"}));return res.json({activeKeys:keyCount,customPoolCount:storedKeys.length,dailyFreeImagesPerKey:500,totalDailyFreeImages:keyCount*500,rpmPerKey:10,totalRpm:keyCount*10,nigeriaSupported:true,rotationMode:"round-robin + automatic 429 failover",slots})});app.post("/api/ai/pool-keys",(req,res)=>{try{const{action="add",rawKeys="",removeIndex}=req.body;const current=getStoredPoolKeys();let updated=current;if(action==="clear"){updated=saveStoredPoolKeys([])}else if(action==="remove"&&typeof removeIndex==="number"){const pool2=getOrderedGeminiKeys();const targetKey=pool2[removeIndex];updated=saveStoredPoolKeys(current.filter(k=>k!==targetKey))}else if(action==="set"){updated=saveStoredPoolKeys(parseKeyList(rawKeys))}else{updated=saveStoredPoolKeys([...current,...parseKeyList(rawKeys)])}const pool=getOrderedGeminiKeys();const keyCount=Math.max(1,pool.length);const storedSet=new Set(updated);return res.json({ok:true,activeKeys:keyCount,customPoolCount:updated.length,totalDailyFreeImages:keyCount*500,totalRpm:keyCount*10,slots:pool.map((k,idx)=>({index:idx+1,masked:maskGeminiKey(k),source:storedSet.has(k)?"pool":"env"}))})}catch(err){return res.status(400).json({error:err instanceof Error?err.message:"Could not update Gemini pool"})}});async function serverGenerateNarration(params){const cleanText=(params.text||"").trim();const spec=resolveServerVoice(params.voiceId||params.voiceName);if(spec.isCustomVoice&&spec.customVoiceRecord){const cv=spec.customVoiceRecord;if(params.previewMode==="raw"&&cv.rawPath){const rawStored=loadMediaFromDisk(cv.rawPath);if(rawStored?.bytes){return{base64:rawStored.bytes.toString("base64"),mimeType:"audio/wav",bytes:rawStored.bytes,voiceId:spec.id,gatewayVoice:spec.gatewayVoice,gender:spec.gender,engine:"custom-dsp-voice",model:"raw-user-recording"}}}if((params.previewMode==="enhanced"||cleanText==="Voice check. Your narration engine is working.")&&cv.enhancedPath){const enhStored=loadMediaFromDisk(cv.enhancedPath);if(enhStored?.bytes){return{base64:enhStored.bytes.toString("base64"),mimeType:"audio/wav",bytes:enhStored.bytes,voiceId:spec.id,gatewayVoice:spec.gatewayVoice,gender:spec.gender,engine:"custom-dsp-voice",model:"broadcast-dsp-master"}}}}const maybeApplyCustomCloneDsp=rawBytes=>{if(!spec.isCustomVoice||!spec.customVoiceRecord)return rawBytes;try{return applyCustomVoiceTimbreToSynthesizedWav(rawBytes,spec.customVoiceRecord,path.join(MEDIA_DIR,"tmp_voice"))}catch{return rawBytes}};const resolvedGatewayVoice=spec.gatewayVoice;const resolvedDirection=params.direction||spec.direction;const resolvedGender=params.gender||spec.gender;const resolvedElevenId=params.elevenId||spec.elevenId;const cacheKey=`${spec.id}:${resolvedGatewayVoice}:${cleanText}`;const cached=ttsAudioCache.get(cacheKey);if(cached){return{base64:cached.base64,mimeType:cached.mimeType,bytes:Buffer.from(cached.base64,"base64"),voiceId:spec.id,gatewayVoice:resolvedGatewayVoice,gender:resolvedGender,engine:spec.engine,model:cached.model}}const customKey=params.apiKey&&params.apiKey.trim()&&params.apiKey.trim()!=="builtin"?params.apiKey.trim():null;if(params.providerId==="elevenlabs"&&customKey){try{const r=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${resolvedElevenId}?output_format=pcm_24000`,{method:"POST",headers:{"xi-api-key":customKey,"Content-Type":"application/json"},body:JSON.stringify({text:cleanText,model_id:"eleven_multilingual_v2"})});if(r.ok){const pcmBytes=new Uint8Array(await r.arrayBuffer());const wavBuffer=maybeApplyCustomCloneDsp(pcm16ToWav(pcmBytes,24e3));const b64=wavBuffer.toString("base64");ttsAudioCache.set(cacheKey,{base64:b64,mimeType:"audio/wav",model:"elevenlabs"});return{base64:b64,mimeType:"audio/wav",bytes:wavBuffer,voiceId:spec.id,gatewayVoice:resolvedGatewayVoice,gender:resolvedGender,engine:spec.isCustomVoice?"custom-dsp-voice":"elevenlabs"}}}catch{}}const keyPool=getGeminiKeyPool(customKey);const startModelIdx=ttsModelCursor%ttsModelOrder.length;ttsModelCursor=(ttsModelCursor+1)%ttsModelOrder.length;const modelsToTry=[...ttsModelOrder.slice(startModelIdx),...ttsModelOrder.slice(0,startModelIdx)];for(const key of keyPool){for(const modelName of modelsToTry){try{const ai=createGeminiClientForKey(key);const isGemini38=modelName.startsWith("gemini-3.8");const contents=isGemini38?[{role:"user",parts:[{text:cleanText,speechMetadata:{style:resolvedDirection}}]}]:[{parts:[{text:`Say in a ${resolvedDirection} tone: ${cleanText}`}]}];const response=await ai.models.generateContent({model:modelName,contents,config:{responseModalities:[Modality.AUDIO],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:resolvedGatewayVoice}}}}});const base64Audio=response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;if(base64Audio){const rawBytes=Buffer.from(base64Audio,"base64");const isAlreadyWav=rawBytes.length>12&&rawBytes.subarray(0,4).toString("ascii")==="RIFF"&&rawBytes.subarray(8,12).toString("ascii")==="WAVE";const wavBuffer=maybeApplyCustomCloneDsp(isAlreadyWav?rawBytes:pcm16ToWav(new Uint8Array(rawBytes),24e3));const b64=wavBuffer.toString("base64");ttsAudioCache.set(cacheKey,{base64:b64,mimeType:"audio/wav",model:modelName});return{base64:b64,mimeType:"audio/wav",bytes:wavBuffer,voiceId:spec.id,gatewayVoice:resolvedGatewayVoice,gender:resolvedGender,engine:spec.engine,model:modelName}}}catch{}}}const neuralAudio=await tryNeuralFallbackTts(cleanText,spec.neuralFallbackVoice);if(neuralAudio){const rawNeuralBytes=Buffer.from(neuralAudio.base64,"base64");const clonedBytes=spec.isCustomVoice?maybeApplyCustomCloneDsp(rawNeuralBytes):rawNeuralBytes;const outMime=spec.isCustomVoice?"audio/wav":neuralAudio.mimeType;const outB64=clonedBytes.toString("base64");ttsAudioCache.set(cacheKey,{base64:outB64,mimeType:outMime,model:`neural-${spec.engine}-${resolvedGender}`});return{base64:outB64,mimeType:outMime,bytes:clonedBytes,voiceId:spec.id,gatewayVoice:resolvedGatewayVoice,gender:resolvedGender,engine:spec.engine,model:`neural-${spec.engine}-${resolvedGender}`}}const fallbackWav=maybeApplyCustomCloneDsp(generateFallbackSpeechWav(cleanText,resolvedGender));return{base64:fallbackWav.toString("base64"),mimeType:"audio/wav",bytes:fallbackWav,voiceId:spec.id,gatewayVoice:resolvedGatewayVoice,gender:resolvedGender,engine:spec.engine}}__name(serverGenerateNarration,"serverGenerateNarration");__name2(serverGenerateNarration,"serverGenerateNarration");app.post("/api/ai/tts",async(req,res)=>{try{const body=req.body;const cleanText=(body.text||"").trim();if(!cleanText){return res.status(400).json({error:"Missing narration text"})}const result=await serverGenerateNarration({...body,text:cleanText});return res.json({base64:result.base64,mimeType:result.mimeType,voiceId:result.voiceId,gatewayVoice:result.gatewayVoice,gender:result.gender,engine:result.engine,model:result.model})}catch(err){const message=err instanceof Error?err.message:"Voice synthesis failed";return res.status(500).json({error:message})}});app.post("/api/media/upload",(req,res)=>{try{const{path:filePath,dataUrl}=req.body;if(!filePath||!dataUrl)return res.status(400).json({error:"Missing path or dataUrl"});const match=dataUrl.match(/^data:([^;]+);base64,(.+)$/);if(match){const mimeType=match[1];const bytes=Buffer.from(match[2],"base64");saveMediaToDisk(filePath,mimeType,bytes)}return res.json({ok:true})}catch{return res.status(500).json({error:"Upload failed"})}});function assembleVideoMp4Sync(v) {
+  try {
+    const userId = String(v.user_id || "creator_google_admin");
+    const videoId = String(v.id || "");
+    if (!videoId) return null;
+    const relPath = v.video_path || (userId + "/" + videoId + "/video.mp4");
+    const fullOut = path.join(MEDIA_DIR, relPath);
+
+    if (fs.existsSync(fullOut) && fs.statSync(fullOut).size > 1000) {
+      return fullOut;
+    }
+
+    fs.mkdirSync(path.dirname(fullOut), { recursive: true });
+    const workDir = path.join(MEDIA_DIR, "tmp_batch", videoId + "_" + Date.now());
+    fs.mkdirSync(workDir, { recursive: true });
+
+    const scenes = Array.isArray(v.scenes) && v.scenes.length > 0
+      ? v.scenes
+      : [{ narration: v.title || "Scene", visual: v.title || "Scene" }];
+
+    const scenesToRender = scenes.slice(0, 8);
+    const segFiles = [];
+
+    for (let i = 0; i < scenesToRender.length; i++) {
+      const sc = scenesToRender[i];
+      let imgFile = null;
+      let wavFile = null;
+
+      if (sc.imagePath && fs.existsSync(path.join(MEDIA_DIR, sc.imagePath))) {
+        imgFile = path.join(MEDIA_DIR, sc.imagePath);
+      }
+      if (sc.audioPath && fs.existsSync(path.join(MEDIA_DIR, sc.audioPath))) {
+        wavFile = path.join(MEDIA_DIR, sc.audioPath);
+      }
+
+      const candidateImg = path.join(path.dirname(fullOut), "scene-" + i + ".png");
+      const candidateWav = path.join(path.dirname(fullOut), "scene-" + i + ".wav");
+      if (!imgFile && fs.existsSync(candidateImg)) imgFile = candidateImg;
+      if (!wavFile && fs.existsSync(candidateWav)) wavFile = candidateWav;
+
+      if (!imgFile && sc.imagePath) {
+        const altSeedImg = path.join(MEDIA_DIR, "seeded", path.basename(sc.imagePath));
+        if (fs.existsSync(altSeedImg)) imgFile = altSeedImg;
+      }
+      if (!wavFile && sc.audioPath) {
+        const altSeedWav = path.join(MEDIA_DIR, "seeded", path.basename(sc.audioPath));
+        if (fs.existsSync(altSeedWav)) wavFile = altSeedWav;
+      }
+
+      if (!imgFile) {
+        imgFile = path.join(workDir, "fallback_" + i + ".png");
+        const fallbackPng = renderStyleLockedFallbackPng(
+          sc.visual || sc.narration || v.title || ("Scene " + (i + 1)),
+          v.style || "cinematic",
+          "STUDIO",
+          false,
+          { shotIndex: i }
+        );
+        fs.writeFileSync(imgFile, fallbackPng);
+      }
+
+      if (!wavFile) {
+        wavFile = path.join(workDir, "fallback_" + i + ".wav");
+        const fallbackWav = generateFallbackSpeechWav(sc.narration || v.title || ("Scene " + (i + 1) + "."));
+        fs.writeFileSync(wavFile, fallbackWav);
+      }
+
+      const segFile = path.join(workDir, "seg_" + i + ".mp4");
+      spawnSync("ffmpeg", [
+        "-y", "-loop", "1", "-i", imgFile, "-i", wavFile,
+        "-c:v", "libx264", "-tune", "stillimage", "-preset", "ultrafast",
+        "-crf", "24", "-pix_fmt", "yuv420p",
+        "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
+        "-c:a", "aac", "-b:a", "128k", "-shortest", segFile
+      ]);
+      if (fs.existsSync(segFile) && fs.statSync(segFile).size > 100) {
+        segFiles.push(segFile);
+      }
+    }
+
+    if (segFiles.length > 0) {
+      const concatTxt = path.join(workDir, "concat.txt");
+      fs.writeFileSync(concatTxt, segFiles.map(function(f) { return "file '" + f + "'"; }).join("\n") + "\n", "utf8");
+
+      spawnSync("ffmpeg", [
+        "-y", "-f", "concat", "-safe", "0", "-i", concatTxt,
+        "-c", "copy", "-movflags", "+faststart", fullOut
+      ], { cwd: workDir });
+    }
+
+    try { fs.rmSync(workDir, { recursive: true, force: true }); } catch {}
+
+    if (fs.existsSync(fullOut) && fs.statSync(fullOut).size > 1000) {
+      v.video_path = relPath;
+      v.status = "ready";
+      v.progress = 100;
+      saveStore();
+      return fullOut;
+    }
+  } catch (err) {
+    console.warn("assembleVideoMp4Sync failed:", err);
+  }
+  return null;
+}
+
+function ensureAllVideosRenderedOnDisk() {
+  try {
+    const videosTable = getTable("videos");
+    for (const v of videosTable) {
+      if (!v || !v.id) continue;
+      const userId = String(v.user_id || "creator_google_admin");
+      const videoId = String(v.id);
+      const relPath = v.video_path || (userId + "/" + videoId + "/video.mp4");
+      const fullOut = path.join(MEDIA_DIR, relPath);
+      if (!fs.existsSync(fullOut) || fs.statSync(fullOut).size < 1000) {
+        assembleVideoMp4Sync(v);
+      }
+    }
+  } catch (err) {
+    console.warn("ensureAllVideosRenderedOnDisk error:", err);
+  }
+}
+
+function serveStudioMediaFile(rawFilePath, req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Range, Content-Type, Accept, Authorization");
+  res.setHeader("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges, Content-Disposition");
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  if (req.method === "OPTIONS") return res.status(204).end();
+
+  let targetPath = String(rawFilePath || req.query.path || req.query.filePath || req.params?.[0] || req.params?.videoId || req.query.videoId || req.query.id || "").trim();
+  if (targetPath.includes("?path=")) {
+    const match = targetPath.match(/[?&]path=([^&]+)/);
+    if (match) targetPath = decodeURIComponent(match[1]);
+  }
+  if (targetPath.startsWith("http://") || targetPath.startsWith("https://")) {
+    try {
+      const parsed = new URL(targetPath);
+      targetPath = parsed.searchParams.get("path") || parsed.pathname.replace(/^\/+(media\/+)?/, "");
+    } catch {}
+  }
+  targetPath = targetPath.replace(/^\/+/, "").replace(/^media\/+/, "").replace(/^api\/media\/file\??/, "").replace(/^api\/media\/download\??/, "");
+  try {
+    if (targetPath.includes("%")) targetPath = decodeURIComponent(targetPath);
+  } catch {}
+
+  const isDownload = req.query.download === "true" || req.query.download === "1" || String(req.path || "").includes("download") || req.query.dl === "1";
+  const customDownloadName = req.query.filename ? String(req.query.filename).replace(/[^a-zA-Z0-9._ -]/g, "").trim() : "";
+
+  const videosTable = getTable("videos");
+  let matchingVideo = null;
+  if (targetPath) {
+    matchingVideo = videosTable.find(v => (
+      (v.id && String(v.id) === targetPath) ||
+      (v.id && targetPath.includes(String(v.id))) ||
+      (v.video_path && (v.video_path === targetPath || targetPath.includes(v.video_path)))
+    ));
+  }
+
+  const candidates = [];
+  if (matchingVideo) {
+    if (matchingVideo.video_path) candidates.push(matchingVideo.video_path);
+    const uId = matchingVideo.user_id || "creator_google_admin";
+    candidates.push(`${uId}/${matchingVideo.id}/video.mp4`);
+  }
+  if (targetPath) {
+    candidates.push(targetPath);
+    candidates.push(targetPath.replace(/scene_(\d+)/g, "scene-$1"));
+    candidates.push(targetPath.replace(/scene-(\d+)/g, "scene_$1"));
+    candidates.push(path.join("creator_google_admin", targetPath));
+    candidates.push(path.join("seeded", targetPath));
+    if (!targetPath.endsWith(".mp4") && !targetPath.endsWith(".png") && !targetPath.endsWith(".jpg") && !targetPath.endsWith(".wav")) {
+      candidates.push(path.join(targetPath, "video.mp4"));
+      candidates.push(path.join("creator_google_admin", targetPath, "video.mp4"));
+    }
+  }
+
   for (const candidate of candidates) {
     try {
       const { dataPath, metaPath } = safeMediaPath(candidate);
@@ -1146,32 +1380,51 @@ Return JSON with passed (true if score >= 70), score (0-100), verdict (concise 6
             } catch {}
           }
           res.setHeader("Accept-Ranges", "bytes");
-          res.setHeader("Content-Type", mimeType);
+          res.setHeader("Content-Type", isDownload ? (mimeType === "video/mp4" ? "video/mp4" : "application/octet-stream") : mimeType);
           res.setHeader("Cache-Control", "public, max-age=3600");
-          const range = req.headers.range;
-          const MAX_CHUNK = 8 * 1024 * 1024;
-          if (range) {
-            const parts = String(range).replace(/bytes=/, "").split("-");
-            const start = Math.max(0, parseInt(parts[0] || "0", 10) || 0);
-            const requestedEnd = parts[1] ? parseInt(parts[1], 10) : total - 1;
-            const cappedEnd = parts[1]
-              ? Math.min(total - 1, requestedEnd, start + MAX_CHUNK - 1)
-              : total > 20 * 1024 * 1024
-                ? Math.min(total - 1, start + MAX_CHUNK - 1)
-                : total - 1;
-            if (start >= total) {
+          if (isDownload) {
+            const rawDl = customDownloadName || (matchingVideo?.title ? `${matchingVideo.title.replace(/[^a-zA-Z0-9._ -]/g, "").trim()}.mp4` : path.basename(candidate)) || "video.mp4";
+            const dlName = rawDl.endsWith(".mp4") ? rawDl : `${rawDl}.mp4`;
+            const cleanAscii = dlName.replace(/[^\x20-\x7E]/g, "").replace(/["\\;]/g, "_") || "video.mp4";
+            res.setHeader("Content-Disposition", `attachment; filename="${cleanAscii}"; filename*=UTF-8''${encodeURIComponent(dlName)}`);
+          }
+
+          if (req.method === "HEAD") {
+            res.status(200);
+            res.setHeader("Content-Length", String(total));
+            return res.end();
+          }
+
+          const rangeHeader = req.headers.range;
+          let start = 0;
+          let end = total - 1;
+          if (rangeHeader) {
+            const match = String(rangeHeader).match(/bytes=(\d*)-(\d*)/);
+            if (match) {
+              if (match[1] === "" && match[2] !== "") {
+                const suffix = parseInt(match[2], 10);
+                start = Math.max(0, total - suffix);
+                end = total - 1;
+              } else {
+                start = parseInt(match[1], 10) || 0;
+                end = match[2] !== "" ? parseInt(match[2], 10) : total - 1;
+              }
+            }
+            if (start >= total || start < 0) {
               res.status(416);
               res.setHeader("Content-Range", `bytes */${total}`);
               return res.end();
             }
-            const chunkLen = cappedEnd - start + 1;
+            end = Math.min(end, total - 1);
+            const chunkLen = end - start + 1;
             res.status(206);
-            res.setHeader("Content-Range", `bytes ${start}-${cappedEnd}/${total}`);
+            res.setHeader("Content-Range", `bytes ${start}-${end}/${total}`);
             res.setHeader("Content-Length", String(chunkLen));
-            const stream = fs.createReadStream(dataPath, { start, end: cappedEnd });
+            const stream = fs.createReadStream(dataPath, { start, end });
             stream.on("error", () => res.end());
             return stream.pipe(res);
           }
+
           res.setHeader("Content-Length", String(total));
           const stream = fs.createReadStream(dataPath);
           stream.on("error", () => res.end());
@@ -1180,23 +1433,91 @@ Return JSON with passed (true if score >= 70), score (0-100), verdict (concise 6
       }
     } catch {}
   }
-  const stored = loadMediaFromDisk(filePath);
+
+  if (matchingVideo || targetPath.endsWith(".mp4") || candidates.some(c => c.endsWith(".mp4"))) {
+    try {
+      const vToAssemble = matchingVideo || videosTable.find(v => v.id && (targetPath.includes(String(v.id)) || (v.video_path && targetPath.includes(String(v.video_path)))));
+      if (vToAssemble) {
+        const assembledFile = assembleVideoMp4Sync(vToAssemble);
+        if (assembledFile && fs.existsSync(assembledFile)) {
+          const stat = fs.statSync(assembledFile);
+          const total = stat.size;
+          res.setHeader("Accept-Ranges", "bytes");
+          res.setHeader("Content-Type", "video/mp4");
+          res.setHeader("Cache-Control", "public, max-age=3600");
+          if (isDownload) {
+            const rawDl = customDownloadName || (vToAssemble.title ? `${vToAssemble.title.replace(/[^a-zA-Z0-9._ -]/g, "").trim()}.mp4` : path.basename(assembledFile)) || "video.mp4";
+            const dlName = rawDl.endsWith(".mp4") ? rawDl : `${rawDl}.mp4`;
+            const cleanAscii = dlName.replace(/[^\x20-\x7E]/g, "").replace(/["\\;]/g, "_") || "video.mp4";
+            res.setHeader("Content-Disposition", `attachment; filename="${cleanAscii}"; filename*=UTF-8''${encodeURIComponent(dlName)}`);
+          }
+          if (req.method === "HEAD") {
+            res.status(200);
+            res.setHeader("Content-Length", String(total));
+            return res.end();
+          }
+          res.setHeader("Content-Length", String(total));
+          const stream = fs.createReadStream(assembledFile);
+          stream.on("error", () => res.end());
+          return stream.pipe(res);
+        }
+      }
+    } catch (err) {
+      console.warn("On-demand video build failed:", err);
+    }
+  }
+
+  const stored = loadMediaFromDisk(targetPath);
   if (stored && stored.bytes && stored.bytes.length > 0) {
     const total = stored.bytes.length;
     res.setHeader("Accept-Ranges", "bytes");
     res.setHeader("Content-Type", stored.mimeType);
+    if (isDownload) {
+      const dlName = customDownloadName || path.basename(targetPath);
+      res.setHeader("Content-Disposition", `attachment; filename="${dlName}"; filename*=UTF-8''${encodeURIComponent(dlName)}`);
+    }
     res.setHeader("Content-Length", String(total));
     return res.send(stored.bytes);
   }
-  if (filePath.endsWith(".wav")) {
+
+  if (targetPath.endsWith(".wav")) {
     const wav = generateFallbackSpeechWav("Channel Studio narration preview.");
     res.setHeader("Content-Type", "audio/wav");
     return res.send(wav);
   }
-  if (filePath.endsWith(".mp4")) {
+  if (targetPath.endsWith(".mp4") || candidates.some(c => c.endsWith(".mp4"))) {
+    try {
+      const fbWav = generateFallbackSpeechWav("Channel Studio Preview Video");
+      const fbPng = renderStyleLockedFallbackPng("Studio Video", "cinematic", "STUDIO", false, { shotIndex: 0 });
+      const tmpWav = path.join(MEDIA_DIR, "tmp_batch", "fb_" + Date.now() + ".wav");
+      const tmpPng = path.join(MEDIA_DIR, "tmp_batch", "fb_" + Date.now() + ".png");
+      const tmpMp4 = path.join(MEDIA_DIR, "tmp_batch", "fb_" + Date.now() + ".mp4");
+      fs.mkdirSync(path.dirname(tmpWav), { recursive: true });
+      fs.writeFileSync(tmpWav, fbWav);
+      fs.writeFileSync(tmpPng, fbPng);
+      spawnSync("ffmpeg", [
+        "-y", "-loop", "1", "-i", tmpPng, "-i", tmpWav,
+        "-c:v", "libx264", "-tune", "stillimage", "-preset", "ultrafast",
+        "-crf", "24", "-pix_fmt", "yuv420p",
+        "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
+        "-c:a", "aac", "-b:a", "128k", "-shortest", tmpMp4
+      ]);
+      if (fs.existsSync(tmpMp4)) {
+        const mp4Bytes = fs.readFileSync(tmpMp4);
+        try { fs.unlinkSync(tmpWav); fs.unlinkSync(tmpPng); fs.unlinkSync(tmpMp4); } catch {}
+        res.setHeader("Accept-Ranges", "bytes");
+        res.setHeader("Content-Type", "video/mp4");
+        if (isDownload) {
+          const dlName = customDownloadName || path.basename(targetPath) || "video.mp4";
+          res.setHeader("Content-Disposition", `attachment; filename="${dlName}"; filename*=UTF-8''${encodeURIComponent(dlName)}`);
+        }
+        res.setHeader("Content-Length", String(mp4Bytes.length));
+        return res.send(mp4Bytes);
+      }
+    } catch {}
     return res.status(404).end();
   }
-  if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) {
+  if (targetPath.endsWith(".jpg") || targetPath.endsWith(".jpeg")) {
     const raw = renderStyleLockedFallbackPng("Thumbnail", "cinematic", "THE HIDDEN TRUTH", false, { shotIndex: 0 });
     const conv = spawnSync("ffmpeg", ["-y", "-v", "error", "-i", "pipe:0", "-q:v", "2", "-f", "image2", "pipe:1"], {
       input: raw,
@@ -1210,6 +1531,10 @@ Return JSON with passed (true if score >= 70), score (0-100), verdict (concise 6
   return res.send(png);
 }
 app.get("/api/media/file", (req, res) => serveStudioMediaFile(req.query.path, req, res));
+app.get("/api/media/download", (req, res) => { req.query.download = "true"; return serveStudioMediaFile(req.query.path, req, res); });
+app.get("/api/video/:videoId/download", (req, res) => { req.query.download = "true"; return serveStudioMediaFile(req.params.videoId, req, res); });
+app.get("/api/video/:videoId/stream", (req, res) => serveStudioMediaFile(req.params.videoId, req, res));
+app.get("/api/video/:videoId/play", (req, res) => serveStudioMediaFile(req.params.videoId, req, res));
 app.get(/^\/media\/(.+)$/, (req, res) => serveStudioMediaFile(req.params[0], req, res));function formatAssTimestamp(sec){const clamped=Math.max(0,sec);const hours=Math.floor(clamped/3600);const minutes=Math.floor(clamped%3600/60);const seconds=Math.floor(clamped%60);const centis=Math.floor((clamped-Math.floor(clamped))*100);return`${hours}:${String(minutes).padStart(2,"0")}:${String(seconds).padStart(2,"0")}.${String(centis).padStart(2,"0")}`}__name(formatAssTimestamp,"formatAssTimestamp");__name2(formatAssTimestamp,"formatAssTimestamp");function hexToAssColor(hex){const clean=(hex||"#ffffff").replace("#","").trim();if(clean.length===6){const r=clean.slice(0,2);const g=clean.slice(2,4);const b=clean.slice(4,6);return`&H00${b}${g}${r}`}return"&H00FFFFFF"}__name(hexToAssColor,"hexToAssColor");__name2(hexToAssColor,"hexToAssColor");function sanitizeAssText(raw){return raw.replace(/[{}]/g,"").replace(/\\/g,"/").replace(/\r?\n/g," ").replace(/\s+/g," ").trim()}__name(sanitizeAssText,"sanitizeAssText");__name2(sanitizeAssText,"sanitizeAssText");function truncateAtWord(raw,maxChars){const clean=sanitizeAssText(raw);if(clean.length<=maxChars)return clean;const sliced=clean.slice(0,maxChars);const lastSpace=sliced.lastIndexOf(" ");return(lastSpace>Math.floor(maxChars*.55)?sliced.slice(0,lastSpace):sliced).trim()}__name(truncateAtWord,"truncateAtWord");__name2(truncateAtWord,"truncateAtWord");function extractServerTopicKeywords(visual="",narration="",videoTitle="",sceneIndex=0){const stop=new Set(["the","and","for","that","this","with","from","into","over","under","inside","about","what","when","where","which","while","their","there","these","those","have","has","had","were","was","been","being","will","would","could","should","every","most","people","think","know","never","always","actually","really","just","only","more","less","than","very","much","many","some","such","even","still","also","back","down","away","through","between","after","before","during","without","within","across","around","because","however","instead","everything","been","told","wrong","truth","secret","story","history","world","system","process","scene","frame","camera","shot","wide","close","macro","view","views","look","looking","image","visual","photo","picture","render","rendering","extreme","advanced","cinematic","documentary","illustration","vector","style","glowing","dark","bright","clean","modern","showing","depicting","revealing","single","still","highly","detailed","lighting","background","foreground","focus","depth","field","angle"]);const raw=`${narration} ${visual} ${videoTitle}`.replace(/16:9|9:16|24fps|2\.5d|2d|3d|35mm|8k|4k/gi," ").replace(/[^a-zA-Z0-9$%\s-]/g," ");const tokens=raw.split(/\s+/).map(t=>t.trim()).filter(t=>t.length>=3&&!stop.has(t.toLowerCase())&&!/^\d+$/.test(t));const seen=new Set;const unique=[];for(const tok of tokens){const low=tok.toLowerCase();if(!seen.has(low)){seen.add(low);unique.push(tok)}}const titleFallback=videoTitle.split(/\s+/).slice(0,2).join(" ")||`Topic Beat ${sceneIndex+1}`;const k1=unique.slice(0,2).join(" ")||titleFallback;const k2=unique.slice(2,4).join(" ")||unique.slice(1,3).join(" ")||`${k1} Detail`;const k3=unique.slice(4,6).join(" ")||unique.slice(2,5).slice(0,2).join(" ")||`${k1} Mechanism`;const k4=unique.slice(6,8).join(" ")||unique.slice(3,5).join(" ")||`${k2} Impact`;const beatKeywords=[k1.toUpperCase(),k2.toUpperCase(),k3.toUpperCase(),k4.toUpperCase()];return{primaryKeyword:beatKeywords[0],secondaryKeyword:beatKeywords[1],tertiaryKeyword:beatKeywords[2],quaternaryKeyword:beatKeywords[3],beatKeywords,keywords:unique.slice(0,8)}}__name(extractServerTopicKeywords,"extractServerTopicKeywords");__name2(extractServerTopicKeywords,"extractServerTopicKeywords");function extractSceneOverlayIntel(params){const{videoTitle="",narration="",visual="",sceneIndex,totalScenes,isShorts,videoStyle="cinematic",producerStylePref,existingPlan}=params;const producerStyle=resolveServerProducerOverlayStyle(videoStyle,producerStylePref||existingPlan?.producerStyle);const kw=extractServerTopicKeywords(visual,narration,videoTitle,sceneIndex);const combined=`${narration} ${visual} ${videoTitle}`;const hasPercent=/(\d+(?:\.\d+)?\s*%|\bpercent\b|\bshare\b|\befficiency\b|\bprobability\b)/i.test(combined);const graphicKind=existingPlan?.graphicKind||(hasPercent?"donut":/(\$|million|billion|trillion|market|revenue|cost|price|scale|growth|compound|wealth|economy|rate|kpi|roi|watts|gigawatts|megawatts)/i.test(combined)?"bars":/\b(18\d\d|19\d\d|20\d\d|history|century|decade|era|ancient|future|timeline|evolution|origin|began|started|phase|quarter)\b/i.test(combined)?"timeline":/\b(vs|versus|paradox|instead|contrary|opposite|myth|truth|compare|contrast|difference|split|choice|benchmark)\b/i.test(combined)?"split":"radar");const partNum=String(sceneIndex+1).padStart(2,"0");const totalNum=String(Math.max(1,totalScenes)).padStart(2,"0");const styleBadge=producerStyle==="corporate-explainer"?"EXECUTIVE BRIEF":producerStyle==="modern-tech"?"TECH TELEMETRY":"INFOGRAPHIC GRID";const roleLabel=sceneIndex===0?"OPENING PREMISE":sceneIndex===totalScenes-1&&totalScenes>1?"KEY CONCLUSION":graphicKind==="donut"?"RADIAL TELEMETRY":graphicKind==="bars"?"KPI & SCALE":graphicKind==="timeline"?"TIMELINE VECTOR":graphicKind==="split"?"BENCHMARK SPLIT":"CORE MECHANISM";const chapterTag=existingPlan?.chapterTag||`${styleBadge} ${partNum}/${totalNum}  \xB7  ${roleLabel}`;const maxTopicChars=isShorts?32:28;const topicHeadline=truncateAtWord((existingPlan?.topicHeadline||kw.primaryKeyword||videoTitle||`SCENE ${sceneIndex+1} FOCUS`).toUpperCase(),maxTopicChars);const sentences=narration.split(/(?<=[.!?—])\s+/).map(s=>s.trim()).filter(Boolean);const statRegex=/(\$[0-9,.]+\s*(?:million|billion|trillion|M|B|T|k)?|[0-9,.]+\s*%|(?:[0-9,]+(?:\.[0-9]+)?)\s*(?:times|x|nanometers|nm|seconds|years|hours|days|miles|km|tons|watts|gigawatts|megawatts|million|billion|trillion|droplets|mirrors|satellites|degrees|light-years|percent|ghz|tops|teraflops|ms)|\b(?:18\d\d|19\d\d|20\d\d)\b)(?:\s+([a-zA-Z]+))?(?:\s+([a-zA-Z]+))?/i;const statMatch=narration.match(statRegex);let calloutTag=existingPlan?.calloutTag||(producerStyle==="corporate-explainer"?`CORPORATE KPI  \xB7  ${kw.secondaryKeyword.slice(0,16)}`:producerStyle==="modern-tech"?`LIVE SPEC  \xB7  ${kw.secondaryKeyword.slice(0,16)}`:`DATA INDEX  \xB7  ${kw.secondaryKeyword.slice(0,16)}`);let statHeadline=existingPlan?.statHeadline||"";let statSubtext=existingPlan?.statSubtext||"";if(!statHeadline){if(statMatch&&statMatch[1]){const numPart=statMatch[1].trim();const extra1=statMatch[2]||"";const extra2=statMatch[3]||"";const combinedStat=[numPart,extra1,extra2].filter(Boolean).join(" ").toUpperCase();statHeadline=truncateAtWord(`${combinedStat} \xB7 ${kw.primaryKeyword}`,isShorts?26:24);const matchingSentence=sentences.find(s=>s.includes(numPart))||sentences[0]||narration;const cleanedClause=matchingSentence.replace(/^most people[^,]*,\s*/i,"").replace(/^everything you've been told[^.]*\.\s*/i,"").trim();statSubtext=truncateAtWord(cleanedClause,isShorts?44:42)}else{statHeadline=truncateAtWord(`${kw.primaryKeyword} \xB7 ${kw.secondaryKeyword}`,isShorts?26:24);const bestSentence=sentences[0]||narration||visual;statSubtext=truncateAtWord(bestSentence,isShorts?44:42)}}else if(!statSubtext){statSubtext=truncateAtWord(sentences[0]||narration||visual,isShorts?44:42)}const pipCaption=truncateAtWord(existingPlan?.pipCaption||`FIG ${partNum} \xB7 ${kw.secondaryKeyword}`,isShorts?22:25);const numExtract=statHeadline.match(/^(\$?)([0-9,]+(?:\.[0-9]+)?)\s*(%|K|M|B|T|X|W|GW|MW|NM|MS|GHZ|WATTS|BILLION|MILLION|TRILLION|PERCENT|TIMES|YEARS|DAYS|HOURS)?(.*)$/i);const numericTarget=numExtract?Number(numExtract[2].replace(/,/g,"")):null;const numericPrefix=numExtract?numExtract[1]||"":"";const numericSuffix=numExtract?(numExtract[3]||"").toUpperCase():"";const numericTail=numExtract?numExtract[4]||"":"";return{producerStyle,chapterTag,topicHeadline,calloutTag,statHeadline,statSubtext,pipCaption,graphicKind,numericTarget:Number.isFinite(numericTarget)&&numericTarget>0?numericTarget:null,numericPrefix,numericSuffix,numericTail,primaryKeyword:kw.primaryKeyword,secondaryKeyword:kw.secondaryKeyword,tertiaryKeyword:kw.tertiaryKeyword,quaternaryKeyword:kw.quaternaryKeyword,beatKeywords:existingPlan?.beatKeywords||kw.beatKeywords,keywords:kw.keywords}}__name(extractSceneOverlayIntel,"extractSceneOverlayIntel");__name2(extractSceneOverlayIntel,"extractSceneOverlayIntel");async function runIntelligentOverlayProducerAgent(params){const{videoTitle="",videoStyle="cinematic",producerStylePref,scenes=[],isShorts=false}=params;const resolvedProducerStyle=resolveServerProducerOverlayStyle(videoStyle,producerStylePref);const deterministicPlans=scenes.map((sc,idx)=>extractSceneOverlayIntel({videoTitle,narration:String(sc.narration||""),visual:String(sc.visual||""),sceneIndex:idx,totalScenes:scenes.length,isShorts,videoStyle,producerStylePref:resolvedProducerStyle,existingPlan:sc.overlayPlan}));const keyPool=getGeminiKeyPool();if(keyPool.length>0&&scenes.length>0){const styleDirective=resolvedProducerStyle==="corporate-explainer"?"Corporate Explainer style: executive boardroom & SaaS keynote clarity, crisp KPI metrics, ROI/operational workflow callouts, glassmorphic cobalt & emerald broadcast tags.":resolvedProducerStyle==="modern-tech"?"Modern Tech Showcase style: Apple/NVIDIA hardware & AI keynote telemetry HUD, precision specs, throughput benchmarks, optical reticle tags.":"Minimalist Infographic style: Swiss editorial data-journalism grid, proportional ratios, numbered index badges, high-contrast typographic callouts.";const sceneDigest=scenes.map((sc,idx)=>{const det=deterministicPlans[idx];return`Scene ${idx+1} (3.0s fast cut): Narration="${String(sc.narration||"").slice(0,180)}" | Visual="${String(sc.visual||"").slice(0,160)}" | DetectedKeywords="${det.primaryKeyword}, ${det.secondaryKeyword}"`}).join("\n");const prompt=`You are a Senior Broadcast Video Producer & Motion Graphics Director.
 Design a fast-paced (3-second cut per scene) broadcast overlay plan for each scene in "${videoTitle}".
 Overlay Visual System: ${styleDirective}
@@ -1383,7 +1708,7 @@ NOTEBOOKLM BRAINSTORM & DEEP SCRIPT SPECIFICATION:
     ],
   };
 
-  const modelsToTry = ["gemini-3.8-flash", "gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-2.5-flash"];
+  const modelsToTry = ["gemini-2.5-flash", "gemini-3.8-flash"];
   for (const key of keyPool) {
     if (invalidGeminiKeys.has(key)) continue;
     let keyFailedAuth = false;
@@ -1408,12 +1733,13 @@ NOTEBOOKLM BRAINSTORM & DEEP SCRIPT SPECIFICATION:
         }
       } catch (err) {
         const errMsg = (err as Error)?.message || String(err);
-        console.warn(`[Gemini Showrunner] ${modelName} error:`, errMsg);
         if (errMsg.includes("401") || errMsg.includes("UNAUTHENTICATED") || errMsg.includes("ACCESS_TOKEN_TYPE_UNSUPPORTED") || errMsg.includes("invalid authentication")) {
           invalidGeminiKeys.add(key);
+          removeInvalidStoredKey(key);
           keyFailedAuth = true;
           break;
         }
+        console.warn(`[Gemini Showrunner] ${modelName} error:`, errMsg);
       }
     }
     if (keyFailedAuth) continue;
@@ -4513,6 +4839,7 @@ app.use("/assets", express.static(path.join(__dirname, "public/assets"), {
   }
 }));
 
+app.get("/", (_req, res) => { return res.redirect("/app"); });
 let viteReadyPromise=null;if(process.env.NODE_ENV!=="production"){viteReadyPromise=import("vite").then(s=>{const e="default";return s[e]&&typeof s[e]=="object"&&"__esModule"in s[e]?s[e]:s}).then(s=>{const e="default";return s[e]&&typeof s[e]=="object"&&"__esModule"in s[e]?s[e]:s}).then(({createServer:createViteServer})=>createViteServer({server:{middlewareMode:true},appType:"spa"}));app.use(async(req,res,next)=>{try{const vite=await viteReadyPromise;return vite.middlewares(req,res,next)}catch(err){return next(err)}})}else{const distPath=path.join(__dirname,"dist");app.use(express.static(distPath));app.get("*all",(_req,res)=>{res.sendFile(path.join(distPath,"index.html"))})}try{const videosTable=getTable("videos");let repairedCount=0;for(const v of videosTable){const styleId=String(v?.style||"cinematic");const imgSourceSetting=String(v?.settings?.imageSource||"ai");if(styleId==="documentary"||imgSourceSetting==="wikipedia-only"){continue}const scenes=Array.isArray(v?.scenes)?v.scenes:[];for(let i=0;i<scenes.length;i++){const sc=scenes[i];if(!sc)continue;const pPath=String(sc.imagePath||"");if(pPath&&!pPath.startsWith("seeded/")){const loaded=loadMediaFromDisk(pPath);if(loaded&&(!loaded.source||String(loaded.source).includes("wiki")||String(sc.imageSource||"").includes("wiki"))){const kw=sc.overlayPlan?.primaryKeyword||sc.topicKeywords?.[0]||v.title||`Scene ${i+1}`;const cleanPng=renderStyleLockedFallbackPng(sc.visual||sc.narration||`Scene ${i+1}`,styleId,kw,false,{shotIndex:i*3});saveMediaToDisk(pPath,"image/png",cleanPng,{source:`style-locked-${styleId}`,style:styleId});sc.imageSource=`style-locked-${styleId}`;sc.styledWith=styleId;repairedCount++}}const bList=Array.isArray(sc.brollPaths)?sc.brollPaths:[];for(const bPath of bList){const bp=String(bPath||"");if(bp&&!bp.startsWith("seeded/")){const bLoaded=loadMediaFromDisk(bp);if(bLoaded&&(!bLoaded.source||String(bLoaded.source).includes("wiki"))){const kw=sc.overlayPlan?.secondaryKeyword||sc.topicKeywords?.[1]||v.title||`Detail ${i+1}`;const cleanBroll=renderStyleLockedFallbackPng(`${kw}: ${sc.narration||sc.visual||`Scene ${i+1}`}`,styleId,kw,false,{shotIndex:i*3+1});saveMediaToDisk(bp,"image/png",cleanBroll,{source:`style-locked-${styleId}`,style:styleId});repairedCount++}}}}}if(repairedCount>0){saveStore()}}catch{}
 try {
   const videosTable = getTable("videos");
@@ -4543,5 +4870,7 @@ try {
     }
   }
 } catch {}
+repairGeminiPoolOnStartup();
+ensureAllVideosRenderedOnDisk();
 ensureSeededCustomVoicesForUser("creator_google_admin").catch(() => {});
 app.listen(PORT,"0.0.0.0",()=>{console.log(`Channel Studio server running on http://localhost:${PORT}`)})}__name(startServer,"startServer");__name2(startServer,"startServer");startServer();
